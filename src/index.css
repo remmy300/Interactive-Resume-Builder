@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg-primary: #f3f4f6;
+  --color-bg-secondary: #ffffff;
+  --color-text-primary: #111827;
+  --color-border-primary: #165ef8;
+  --button-text-color: var(--text-secondary);
+}
+
+.dark {
+  --color-bg-primary: #404e64fd;
+  --color-bg-secondary: #161a24e5;
+  --color-text-primary: #b8cadbc4;
+  --color-border: #5897f7c7;
+  --button-text-color: white;
+}
