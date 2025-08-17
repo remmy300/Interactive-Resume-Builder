@@ -69,27 +69,35 @@ const App = () => {
     setIsGeneratingPdf(true);
     try {
       const element = cvRef.current;
-
       if (!element) {
         console.error("CV element not found!");
+        setIsGeneratingPdf(false);
         return;
       }
 
-      const elementsWithOklch = element.querySelectorAll("*");
-      elementsWithOklch.forEach((el) => {
-        const styles = window.getComputedStyle(el);
-
-        if (styles.color.includes("oklch")) {
-          el.style.color = "#5a67d8";
-        }
-        if (styles.backgroundColor.includes("oklch")) {
-          el.style.backgroundColor = "#f7fafc";
-        }
-      });
+      // Clone the element
       const clonedElement = element.cloneNode(true);
+
+      // ✅ Inject override CSS to kill all oklch() colors
+      const styleTag = document.createElement("style");
+      styleTag.innerHTML = `
+      #cv-pdf-clone, 
+      #cv-pdf-clone * {
+        color: #000 !important;
+        background-color: #fff !important;
+        border-color: #e2e8f0 !important;
+      }
+    `;
+      clonedElement.prepend(styleTag);
+
+      // A4 adjustments
       clonedElement.style.width = "210mm";
-      clonedElement.style.height = "297mm";
+      clonedElement.style.minHeight = "297mm";
       clonedElement.style.padding = "20px";
+      clonedElement.style.background = "#fff";
+      clonedElement.style.boxSizing = "border-box";
+      clonedElement.id = "cv-pdf-clone";
+
       document.body.appendChild(clonedElement);
 
       const options = {
@@ -108,13 +116,16 @@ const App = () => {
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       };
 
+      console.log("handleDownload called with:", action);
+
       try {
         if (action === "preview") {
           const pdf = await html2pdf()
             .set(options)
             .from(clonedElement)
             .toPdf()
-            .outputPdf();
+            .output("arraybuffer");
+
           const blob = new Blob([pdf], { type: "application/pdf" });
           const blobUrl = URL.createObjectURL(blob);
           setPreviewUrl(blobUrl);
@@ -134,17 +145,18 @@ const App = () => {
 
   const handleInputChange = (section, field, value, index = 0) => {
     setFormData((prev) => {
-      if (Array.isArray(prev[section])) {
+      const current = prev[section] || [];
+      if (Array.isArray(current)) {
         if (field === "new") {
           return {
             ...prev,
-            [section]: [...prev[section], value],
+            [section]: [...current, value],
           };
         }
 
         return {
           ...prev,
-          [section]: prev[section].map((item, i) =>
+          [section]: current.map((item, i) =>
             i === index ? { ...item, [field]: value } : item
           ),
         };

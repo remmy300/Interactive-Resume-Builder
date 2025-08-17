@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Button from "@mui/material/Button";
 import AddBox from "@mui/icons-material/AddBox";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 const Education = ({ education, handleChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,7 +43,7 @@ const Education = ({ education, handleChange }) => {
         }}
         onClick={() => setIsOpen(!isOpen)}
       >
-        Education ({education.length})
+        Education
       </Button>
 
       {isOpen && (
