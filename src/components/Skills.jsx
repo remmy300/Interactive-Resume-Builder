@@ -1,4 +1,3 @@
-import React from "react";
 import { useState } from "react";
 import Button from "@mui/material/Button";
 import AddBox from "@mui/icons-material/AddBox";
@@ -11,7 +10,7 @@ const Skills = ({ formData, handleChange }) => {
   };
 
   return (
-    <div className="w-64 md:w-76 lg:w-96  flex flex-col items-center justify-center gap-6 p-4 bg-[var(--color-bg-secondary)] dark:bg-[var(--color-bg-primary)] rounded-lg shadow-md ">
+    <div className="w-64 md:w-76 lg:w-96 flex flex-col items-center justify-center gap-6 p-4 bg-[var(--color-bg-secondary)] dark:bg-[var(--color-bg-primary)] rounded-lg shadow-md">
       <Button
         variant="outlined"
         endIcon={<AddBox />}
@@ -21,15 +20,14 @@ const Skills = ({ formData, handleChange }) => {
           fontSize: "1rem",
           fontWeight: "bold",
           border: "1px solid grey",
-          color: "var(--color-text-primary)", // Default text color
-
-          backgroundColor: "var(--color-bg-primary)", // Default background
-          "&:hover": { backgroundColor: "gray.100" }, // Hover effect
+          color: "var(--color-text-primary)",
+          backgroundColor: "var(--color-bg-primary)",
+          "&:hover": { backgroundColor: "gray.100" },
           "&.dark": {
-            backgroundColor: "var(--color-bg-secondary)", // Dark mode background
-            "&:hover": { backgroundColor: "gray.700" }, // Dark mode hover
+            backgroundColor: "var(--color-bg-secondary)",
+            "&:hover": { backgroundColor: "gray.700" },
           },
-          borderRadius: "8px", // Rounded corners
+          borderRadius: "8px",
         }}
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -37,30 +35,32 @@ const Skills = ({ formData, handleChange }) => {
       </Button>
 
       {isOpen && (
-        <form form className="w-full space-y-4">
+        <form className="w-full space-y-4">
+          {" "}
+          {/* Removed redundant form attribute */}
           <input
             type="text"
             name="languages"
-            placeholder="Languages"
-            value={formData.languages}
+            placeholder="Languages (e.g., JavaScript, Python)"
+            value={formData.languages || ""}
             onChange={handleSkillsChange}
-            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+            className="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md focus:outline-none shadow-lg shadow-gray-400"
           />
           <input
             type="text"
             name="technologies"
-            value={formData.technologies}
+            value={formData.technologies || ""}
             onChange={handleSkillsChange}
-            placeholder="Technologies / Frameworks"
-            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+            placeholder="Technologies/Frameworks (e.g., React, Node.js)"
+            className="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md focus:outline-none shadow-lg shadow-gray-400"
           />
           <input
-            type="text-area"
+            type="text"
             name="databases"
-            placeholder="Databases"
-            value={formData.databases}
+            placeholder="Databases (e.g., MongoDB, PostgreSQL)"
+            value={formData.databases || ""}
             onChange={handleSkillsChange}
-            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+            className="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md focus:outline-none shadow-lg shadow-gray-400"
           />
         </form>
       )}
