@@ -98,11 +98,7 @@ const App = () => {
         background-color: #fff !important;
         border-color: #e2e8f0 !important;
       }
-         .pdf-list-item {
-    display: list-item !important;
-    margin-bottom: 0.25rem !important;
-    list-style-position: outside !important;
-  }
+  
     `;
       clonedElement.prepend(styleTag);
 

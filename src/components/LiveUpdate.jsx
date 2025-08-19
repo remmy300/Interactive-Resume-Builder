@@ -3,7 +3,7 @@ import { formatDate } from "../utils/Date";
 
 const LiveUpdate = forwardRef(({ formData }, ref) => {
   return (
-    <div ref={ref} className="cv-container text-gray-800 mx-auto pdf-optimized">
+    <div ref={ref} className="cv-container text-gray-800 mx-auto ">
       {/* Personal Section */}
       <div className="flex flex-col items-center mb-8 gap-1">
         <h1 className="text-3xl font-bold text-gray-900">

@@ -17,7 +17,6 @@
   --button-text-color: white;
 }
 
-/* Print-specific styles */
 @media print {
   body,
   html {
@@ -38,7 +37,6 @@
   overflow: visible;
 }
 
-/* Date formatting */
 .date-range {
   white-space: nowrap;
   display: inline-block;
@@ -50,18 +48,27 @@
   margin-bottom: 12px;
 }
 
-/* List styling that works for both web and PDF */
 .pdf-list {
-  list-style-type: disc;
+  list-style: none !important;
+  padding-left: 0 !important;
   margin: 0.5rem 0;
-  padding-left: 1.5rem;
 }
 
 .pdf-list-item {
-  display: list-item;
+  position: relative;
+  padding-left: 1.25rem;
   margin-bottom: 0.25rem;
   line-height: 1.4;
   break-inside: avoid;
+}
+
+.pdf-list-item::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #000;
+  font-weight: bold;
 }
 
 h1,
@@ -87,17 +94,6 @@ h4 {
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
 }
-
-/* Ensure proper rendering in PDF */
-/* @media print {
-  .print-list {
-    list-style-position: outside !important;
-  }
-
-  .print-list-item {
-    margin-bottom: 2px;
-  }
-} */
 
 @media (max-width: 768px) {
   .table-container {
@@ -126,12 +122,5 @@ h4 {
 
   .date-range {
     white-space: nowrap !important;
-  }
-
-  /* Force black text for printing */
-  .pdf-optimized,
-  .pdf-optimized * {
-    color: #000000 !important;
-    background-color: #ffffff !important;
   }
 }
