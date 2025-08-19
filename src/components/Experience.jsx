@@ -92,9 +92,9 @@ const Experience = ({ experience, handleChange }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none"
               />
 
-              <input
-                type="text"
+              <textarea
                 name="description"
+                rows={4}
                 value={exp.description || ""}
                 onChange={(e) =>
                   handleChange(

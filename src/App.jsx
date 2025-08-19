@@ -64,7 +64,6 @@ const App = () => {
       document.documentElement.classList.remove("dark");
     }
   }, [theme]);
-
   const handleDownload = async (action = "download") => {
     setIsGeneratingPdf(true);
     try {
@@ -78,6 +77,18 @@ const App = () => {
       // Clone the element
       const clonedElement = element.cloneNode(true);
 
+      const elementsWithOklch = element.querySelectorAll("*");
+      elementsWithOklch.forEach((el) => {
+        const styles = window.getComputedStyle(el);
+
+        if (styles.color.includes("oklch")) {
+          el.style.color = "#5a67d8";
+        }
+        if (styles.backgroundColor.includes("oklch")) {
+          el.style.backgroundColor = "#f7fafc";
+        }
+      });
+
       // ✅ Inject override CSS to kill all oklch() colors
       const styleTag = document.createElement("style");
       styleTag.innerHTML = `
@@ -87,6 +98,11 @@ const App = () => {
         background-color: #fff !important;
         border-color: #e2e8f0 !important;
       }
+         .pdf-list-item {
+    display: list-item !important;
+    margin-bottom: 0.25rem !important;
+    list-style-position: outside !important;
+  }
     `;
       clonedElement.prepend(styleTag);
 
@@ -101,19 +117,24 @@ const App = () => {
       document.body.appendChild(clonedElement);
 
       const options = {
-        margin: 10,
+        margin: [0, 0, 0, 0], // Increased margins
         filename: `${formData.personal.name || "My_CV"}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
+        image: { type: "jpeg", quality: 1 },
         html2canvas: {
-          scale: 2,
+          scale: 2, // Reduced scale
           logging: false,
           useCORS: true,
           scrollX: 0,
           scrollY: 0,
-          windowWidth: clonedElement.scrollWidth,
-          windowHeight: clonedElement.scrollHeight,
+          windowWidth: 210 * 4, // Force A4 width in px (≈ 794px * scale 2)
+          windowHeight: 297 * 4, // Force A4 height in px (≈ 1123px * scale 2)
         },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+          hotfixes: ["px_scaling"], // Add this for better pixel scaling
+        },
       };
 
       console.log("handleDownload called with:", action);
@@ -142,7 +163,6 @@ const App = () => {
       setIsGeneratingPdf(false);
     }
   };
-
   const handleInputChange = (section, field, value, index = 0) => {
     setFormData((prev) => {
       const current = prev[section] || [];
@@ -209,7 +229,7 @@ const App = () => {
               isGeneratingPdf ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {isGeneratingPdf ? "Generating..." : "⬇️ Download"}
+            {isGeneratingPdf ? "Generating..." : " Download"}
           </button>
 
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />

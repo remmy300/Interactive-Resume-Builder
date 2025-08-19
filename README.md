@@ -29,8 +29,8 @@ Material UI / Icons (optional buttons & icons)
 
 Clone the repo and install dependencies:
 
-git clone https://github.com/your-username/cv-builder.git
-cd cv-builder
+git clone https://github.com/remmy300/Interactive-Resume-Builder.git
+cd cv-app
 npm install
 
 Run the app in dev mode:
@@ -50,8 +50,6 @@ The CV Preview updates in real-time.
 Click Preview to open your CV in a modal.
 
 Click Download to save as a PDF.
-
-📝 PDF Export Fix (Important!)
 
 Tailwind v3+ uses oklch() color functions, but html2canvas does not support them.
 Without a fix, you’ll get this error:
@@ -96,4 +94,4 @@ Feel free to fork the project and submit a PR.
 
 📜 License
 
-MIT License © 2025 — Jentah Rehema
+MIT License © 2025 Jentah Rehema

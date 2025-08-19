@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Theme Colors */
 :root {
   --color-bg-primary: #f3f4f6;
   --color-bg-secondary: #ffffff;
@@ -14,4 +15,123 @@
   --color-text-primary: #b8cadbc4;
   --color-border: #5897f7c7;
   --button-text-color: white;
+}
+
+/* Print-specific styles */
+@media print {
+  body,
+  html {
+    width: 210mm;
+    height: 297mm;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Main CV container */
+.cv-container {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm;
+  background: white;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+/* Date formatting */
+.date-range {
+  white-space: nowrap;
+  display: inline-block;
+}
+
+/* Section protection */
+.cv-section {
+  page-break-inside: avoid;
+  margin-bottom: 12px;
+}
+
+/* List styling that works for both web and PDF */
+.pdf-list {
+  list-style-type: disc;
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.pdf-list-item {
+  display: list-item;
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+  break-inside: avoid;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.cv-container h3,
+h4 {
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: inline-block;
+}
+
+.table-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+/* Ensure proper rendering in PDF */
+/* @media print {
+  .print-list {
+    list-style-position: outside !important;
+  }
+
+  .print-list-item {
+    margin-bottom: 2px;
+  }
+} */
+
+@media (max-width: 768px) {
+  .table-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Force print colors without overriding */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Print/PDF media query */
+@media print {
+  .pdf-list {
+    list-style-position: outside !important;
+    padding-left: 1.5rem !important;
+  }
+
+  .pdf-list-item {
+    margin-bottom: 2px !important;
+  }
+
+  .date-range {
+    white-space: nowrap !important;
+  }
+
+  /* Force black text for printing */
+  .pdf-optimized,
+  .pdf-optimized * {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+  }
 }
