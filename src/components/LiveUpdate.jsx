@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import { formatDate } from "../utils/Date";
+import { normalizeLink } from "../utils/Form";
 
 const LiveUpdate = forwardRef(({ formData }, ref) => {
   return (
@@ -9,10 +10,55 @@ const LiveUpdate = forwardRef(({ formData }, ref) => {
         <h1 className="text-3xl font-bold text-gray-900">
           {formData.personal.name || "Your Name"}
         </h1>
-        <p className="text-lg text-gray-600">
+
+        <div className="text-lg flex gap-1 font-semibold ">
+          {formData.personal.title || "eg: Software Developer"} |
           {formData.personal.phone || "123-456-7890"} |{" "}
-          {formData.personal.email || "your@email.com"}
-        </p>
+          {formData.personal.email && (
+            <p>{normalizeLink("email", formData.personal.email)} </p>
+          )}
+        </div>
+        <div className="flex gap-2 text-lg font-semibold ">
+          {formData.personal.linkedIn && (
+            <p className=" underline hover:bg-blue-200">
+              <a
+                href={
+                  formData.personal.linkedIn.startsWith("http")
+                    ? formData.personal.linkedin
+                    : `https://${formData.personal.linkedIn}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                LinkedIn
+              </a>
+            </p>
+          )}
+
+          {formData.personal.portfolio && (
+            <p className=" underline hover:bg-blue-200">
+              <a
+                href={formData.personal.portfolio}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Portfolio
+              </a>
+            </p>
+          )}
+
+          {formData.personal.github && (
+            <p className=" underline hover:bg-blue-100">
+              <a
+                href={formData.personal.github}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub
+              </a>
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Education Section */}
@@ -26,9 +72,9 @@ const LiveUpdate = forwardRef(({ formData }, ref) => {
                 <h3 className="text-xl font-semibold">
                   {edu.college || "College Name"}
                 </h3>
-                <p className="text-lg italic">{edu.degree || "Degree"}</p>
+                <p className="text-lg ">{edu.degree || "Degree"}</p>
               </div>
-              <p className="text-gray-600 date-range whitespace-nowrap ml-4">
+              <p className="text-gray-600 text-lg font-semibold date-range whitespace-nowrap ml-4">
                 {formatDate(edu.startDate) || "Start Date"} -{" "}
                 {formatDate(edu.endDate) || "End Date"}
               </p>
@@ -47,19 +93,17 @@ const LiveUpdate = forwardRef(({ formData }, ref) => {
               <h3 className="text-xl font-semibold">
                 {exp.company || "Company Name"}
               </h3>
-              <p className="text-gray-600 date-range whitespace-nowrap ml-4">
+              <p className="text-gray-600 text-lg font-semibold date-range whitespace-nowrap ml-4">
                 {formatDate(exp.startDate) || "Start Date"} -{" "}
                 {formatDate(exp.endDate) || "End Date"}
               </p>
             </div>
-            <p className="text-lg font-medium italic mb-2">
-              {exp.role || "Role"}
-            </p>
-            <ul className="pdf-list pl-6">
+            <p className="text-lg italic  mb-2">{exp.role || "Role"}</p>
+            <ul className="pdf-list ">
               {exp.description.split("\n").map(
                 (point, i) =>
                   point.trim() && (
-                    <li key={i} className="text-gray-700 pdf-list-item">
+                    <li key={i} className="text-gray-700 pdf-list-item text-lg">
                       {point}
                     </li>
                   )
@@ -88,17 +132,17 @@ const LiveUpdate = forwardRef(({ formData }, ref) => {
                   }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-4 text-blue-600 text-lg font-normal whitespace-nowrap"
+                  className="ml-4 text-purple-800 text-lg font-normal whitespace-nowrap"
                 >
                   (View Project)
                 </a>
               )}
             </div>
-            <ul className="pdf-list pl-6">
+            <ul className="pdf-list ">
               {project.description.split("\n").map(
                 (point, i) =>
                   point.trim() && (
-                    <li key={i} className="text-gray-700 pdf-list-item">
+                    <li key={i} className="text-gray-700 pdf-list-item text-lg">
                       {point}
                     </li>
                   )
@@ -112,26 +156,19 @@ const LiveUpdate = forwardRef(({ formData }, ref) => {
       <div className="mb-8 cv-section">
         <h2 className="text-2xl font-bold text-gray-800 mb-3">SKILLS</h2>
         <hr className="border-t border-gray-300 mb-4" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pdf-skills">
-          <div className="pdf-skill-category">
-            <h4 className="font-semibold text-lg">Languages</h4>
-            <p className="text-gray-700">
-              {formData.skills.languages || "Not specified"}
-            </p>
-          </div>
-          <div className="pdf-skill-category">
-            <h4 className="font-semibold text-lg">Technologies</h4>
-            <p className="text-gray-700">
-              {formData.skills.technologies || "Not specified"}
-            </p>
-          </div>
-          <div className="pdf-skill-category">
-            <h4 className="font-semibold text-lg">Databases</h4>
-            <p className="text-gray-700">
-              {formData.skills.databases || "Not specified"}
-            </p>
-          </div>
-        </div>
+        <ul className=" pdf-list">
+          <li className="pdf-list-item text-gray-700 text-lg">
+            Languages: {formData.skills.languages || "Not specified"}
+          </li>
+
+          <li className="text-gray-700 pdf-list-item text-lg">
+            Technologies: {formData.skills.technologies || "Not specified"}
+          </li>
+
+          <li className="text-gray-700 pdf-list-item text-lg">
+            Databases: {formData.skills.databases || "Not specified"}
+          </li>
+        </ul>
       </div>
     </div>
   );

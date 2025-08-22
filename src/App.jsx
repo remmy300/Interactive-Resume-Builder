@@ -23,6 +23,11 @@ const App = () => {
       name: "",
       phone: "",
       email: "",
+      title: "",
+      location: "",
+      linkedIn: "",
+      portfolio: "",
+      github: "",
     },
     education: [
       {
@@ -98,6 +103,7 @@ const App = () => {
         background-color: #fff !important;
         border-color: #e2e8f0 !important;
       }
+
   
     `;
       clonedElement.prepend(styleTag);
@@ -105,7 +111,7 @@ const App = () => {
       // A4 adjustments
       clonedElement.style.width = "210mm";
       clonedElement.style.minHeight = "297mm";
-      clonedElement.style.padding = "20px";
+      clonedElement.style.padding = "30px";
       clonedElement.style.background = "#fff";
       clonedElement.style.boxSizing = "border-box";
       clonedElement.id = "cv-pdf-clone";
@@ -113,23 +119,23 @@ const App = () => {
       document.body.appendChild(clonedElement);
 
       const options = {
-        margin: [0, 0, 0, 0], // Increased margins
+        margin: [0, 0, 0, 0],
         filename: `${formData.personal.name || "My_CV"}.pdf`,
         image: { type: "jpeg", quality: 1 },
         html2canvas: {
-          scale: 2, // Reduced scale
+          scale: 2,
           logging: false,
           useCORS: true,
           scrollX: 0,
           scrollY: 0,
-          windowWidth: 210 * 4, // Force A4 width in px (≈ 794px * scale 2)
-          windowHeight: 297 * 4, // Force A4 height in px (≈ 1123px * scale 2)
+          windowWidth: 210 * 4,
+          windowHeight: 297 * 4,
         },
         jsPDF: {
           unit: "mm",
           format: "a4",
           orientation: "portrait",
-          hotfixes: ["px_scaling"], // Add this for better pixel scaling
+          hotfixes: ["px_scaling"],
         },
       };
 

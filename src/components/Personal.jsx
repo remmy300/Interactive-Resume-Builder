@@ -46,6 +46,14 @@ const Personal = ({ formData, handleChange }) => {
             className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
           />
           <input
+            type="text"
+            name="title"
+            value={formData.title}
+            onChange={handlePersonalChange}
+            placeholder="Work Title"
+            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+          />
+          <input
             type="tel"
             name="phone"
             placeholder="Enter number"
@@ -58,6 +66,30 @@ const Personal = ({ formData, handleChange }) => {
             name="email"
             placeholder="Enter email"
             value={formData.email}
+            onChange={handlePersonalChange}
+            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+          />
+          <input
+            type="text"
+            name="github"
+            placeholder="Github Profile"
+            value={formData.github}
+            onChange={handlePersonalChange}
+            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+          />
+          <input
+            type="text"
+            name="portfolio"
+            placeholder="Portfolio Website"
+            value={formData.portfolio}
+            onChange={handlePersonalChange}
+            className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
+          />
+          <input
+            type="text"
+            name="linkedIn"
+            placeholder="LinkedIn Profile"
+            value={formData.linkedIn}
             onChange={handlePersonalChange}
             className="w-full px-3 py-2 border border-gray-300  bg-white  text-gray-900  rounded-md focus:outline-none shadow-lg shadow-gray-400 "
           />

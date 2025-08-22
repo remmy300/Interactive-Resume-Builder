@@ -66,9 +66,11 @@
   content: "•";
   position: absolute;
   left: 0;
-  top: 0;
+  top: 50%;
+  transform: translateY(-50%); /* centers bullet vertically */
   color: #000;
   font-weight: bold;
+  font-size: 0.9em; /* tweak size if needed */
 }
 
 h1,
