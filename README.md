@@ -1,97 +1,199 @@
-📄 React CV Builder
+# Resume Studio
 
-A simple React-based CV/Resume Builder with live preview and PDF export (download & preview).
-Built with React, TailwindCSS, and html2pdf.js.
+A full-stack resume builder: Google sign-in, multiple private resumes, autosave,
+four templates, an ATS checker and job-description matcher, a live A4 preview,
+and text-based PDF export that applicant tracking systems can actually read.
 
-✨ Features
+Built with Next.js 15 (App Router), TypeScript, PostgreSQL, Prisma, NextAuth v5,
+Material UI, and Tailwind CSS.
 
-📝 Dynamic Form Inputs → Add and edit personal info, experience, projects, skills, etc.
+## Features
 
-👀 Live CV Preview → Real-time rendering of your CV as you type.
+**Editing**
 
-📤 Export to PDF → Download your CV as a styled A4 PDF.
+- Live A4 preview with Classic, ATS safe, Compact, and Two-column templates
+- Summary, personal details, experience, projects, education, skills, and
+  certifications
+- Bullet editor (add, reorder, remove achievements) with Enter-to-add
+- Chip-based skills and spoken languages
+- "Currently work/study here" handling, rendered as “Present”
+- Autosave for existing resumes, plus Ctrl/⌘ + S and an unsaved-changes guard
+- Duplicate-safe entry ids, undoable delete, and a resume switcher that warns
+  before discarding edits
 
-🔍 Preview in Modal → See your CV in a modal before downloading.
+**ATS and job matching**
 
-🎨 TailwindCSS Styling → Clean modern design with responsive layout.
+- ATS check dialog with a 0–100 readiness score and pass/improve/fix checks for
+  contact details, summary, dates, action verbs, measurable results, skills,
+  layout, and length
+- Paste a job description to extract its keywords and see which ones your resume
+  already covers
+- Add missing keywords to the correct skills group with one click (or all at once)
+- One-click switch to the ATS safe template: single column, black text, no
+  graphics or shaded chips, and plain comma-separated skills for reliable parsing
 
-🛠️ Tech Stack
+**Export**
 
-React 18+ (hooks & functional components)
+- Print / Save as PDF with real selectable text, clickable links, and exact A4
+  sizing. No rasterised DOM snapshots.
+- Safe, name-based PDF file names
 
-TailwindCSS (modern styling, responsive classes)
+**Accounts and sharing**
 
-html2pdf.js (for PDF export, using html2canvas + jsPDF)
+- Google sign-in; every resume is scoped to its owner
+- Optional read-only public link (`/r/[slug]`) you can toggle per resume
+- Export all of your data as JSON, or permanently delete your account
+- Optimistic concurrency: a second tab cannot silently overwrite a newer save
 
-Material UI / Icons (optional buttons & icons)
+**Engineering**
 
-⚡ Installation & Setup
+- Zod-validated request bodies and a shared API error envelope
+- Soft deletes, rate limiting, boot-time environment validation, and pagination
+- Edge middleware gate plus server-side session checks in every route
+- Unit tests for date formatting, the resume schema, and the editor reducer
+- GitHub Actions CI: lint, typecheck, test, build
 
-Clone the repo and install dependencies:
+## Requirements
 
-git clone https://github.com/remmy300/Interactive-Resume-Builder.git
-cd cv-app
-npm install
+- Node.js 20.9 or newer
+- PostgreSQL 14 or newer
 
-Run the app in dev mode:
+## Local setup
 
-npm run dev
+1. Install dependencies (this also generates Prisma Client):
 
-Build for production:
+   ```bash
+   npm install
+   ```
 
-npm run build
+2. Create a PostgreSQL database. Neon works well; for a local database create a
+   database for the app.
 
-🚀 Usage
+3. In the [Google Cloud Console](https://console.cloud.google.com/), create an
+   OAuth client ID for a web application and add
+   `http://localhost:3000/api/auth/callback/google` as an authorized redirect
+   URI.
 
-Fill in your personal info, experience, education, and projects.
+4. Copy `.env.example` to `.env` and fill in the values:
 
-The CV Preview updates in real-time.
+   ```bash
+   DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
+   AUTH_SECRET="<random 32-byte base64 string>"
+   AUTH_GOOGLE_ID="<oauth client id>"
+   AUTH_GOOGLE_SECRET="<oauth client secret>"
+   ```
 
-Click Preview to open your CV in a modal.
+   Generate a secret with:
 
-Click Download to save as a PDF.
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
 
-Tailwind v3+ uses oklch() color functions, but html2canvas does not support them.
-Without a fix, you’ll get this error:
+5. Apply the committed migrations:
 
-Error: Attempting to parse an unsupported color function "oklch"
+   ```bash
+   npm run db:deploy
+   ```
 
-✅ Fix Implemented
+6. Start the development server:
 
-We now clone the CV element before export and replace any oklch() colors with safe hex fallback colors:
+   ```bash
+   npm run dev
+   ```
 
-clonedElement.querySelectorAll("\*").forEach((el) => {
-const style = window.getComputedStyle(el);
-if (style.color.includes("oklch")) el.style.color = "#2d3748";
-if (style.backgroundColor.includes("oklch")) el.style.backgroundColor = "#ffffff";
-if (style.borderColor.includes("oklch")) el.style.borderColor = "#e2e8f0";
-});
+   Open [http://localhost:3000](http://localhost:3000) and sign in with Google.
 
-This ensures Preview and Download work reliably.
+## Scripts
 
-🛑 Troubleshooting
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript, no emit |
+| `npm test` | Vitest unit tests |
+| `npm run db:migrate` | Create and apply a migration in development |
+| `npm run db:deploy` | Apply committed migrations (deployments) |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run postinstall` | Generate Prisma Client (runs automatically) |
 
-PDF export fails with oklch error → Make sure you’re on the latest code with the fallback fix.
+## Architecture
 
-Fonts look blurry in PDF → Increase html2canvas.scale to 2 or 3.
+```text
+src/
+  app/
+    page.tsx                    signed-in builder shell
+    login/                      Google sign-in
+    r/[slug]/                   public, read-only shared resume
+    api/resumes/                list, create, read, update, soft delete
+    api/resumes/[id]/share/     public-link toggle
+    api/resumes/[id]/restore/   undo a delete
+    api/account/                account deletion and data export
+  components/
+    Builder.tsx                 orchestration: dialogs, print, sharing, undo
+    builder/                    top bar, switcher, editor and preview panels
+    editor/                     section forms, bullets, tags, template picker
+    preview/                    A4 document renderer and responsive scaler
+  hooks/useResumeEditor.ts      list state, autosave, dirty tracking, conflicts
+  lib/                          auth, Prisma, API helpers, schemas, ATS logic, reducer
+```
 
-Large CVs cut off in PDF → Adjust margin and windowHeight in html2pdf options.
+**Data model.** A resume is a row (`title`, owner, visibility, timestamps) plus
+a validated JSON document (`data`). Sections are normalised in code with
+`schemaVersion`, so the stored JSON can evolve without a table migration. Every
+read goes through `normalizeResumeData`, which upgrades legacy documents
+(missing ids, no `summary`, date strings) on the fly.
 
-📌 Roadmap
+**PDF strategy.** The resume is rendered once as real HTML and printed through
+the browser’s print pipeline using `@page { size: A4; margin: 0 }`. The app
+chrome is hidden with print-only CSS, so the output keeps selectable text,
+working hyperlinks, and ATS-readable content. This avoids DOM-to-image
+libraries and their colour-parsing workarounds.
 
-Add templates (modern, minimalist, creative styles).
+**Autosave and conflicts.** Edits are debounced for 1.2s, then sent with the
+`updatedAt` the client last saw. The API only updates when that timestamp still
+matches; otherwise it returns `409` and the UI surfaces the conflict instead of
+overwriting a newer version from another tab.
 
-Support dark mode preview.
+## Environment
 
-Export to DOCX in addition to PDF.
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `AUTH_SECRET` | yes | Random secret, at least 16 characters |
+| `AUTH_GOOGLE_ID` | yes | Google OAuth client id |
+| `AUTH_GOOGLE_SECRET` | yes | Google OAuth client secret |
+| `AUTH_TRUST_HOST` | no | Set to `true` behind a proxy |
 
-User authentication + save multiple CVs.
+`src/instrumentation.ts` validates these once at server boot so a misconfigured
+deployment fails fast instead of on the first request.
 
-🤝 Contributing
+## Deployment
 
-Contributions, issues, and feature requests are welcome!
-Feel free to fork the project and submit a PR.
+1. Provision PostgreSQL (for example Neon) and set the four required variables
+   in your host.
+2. Add `https://your-domain.com/api/auth/callback/google` to the Google OAuth
+   client.
+3. Run `npm run db:deploy` as a release command (not as part of the build), then
+   `npm run build && npm run start` or let Vercel handle the build.
+4. `npm install` runs `prisma generate` automatically, so fresh clones and CI
+   do not need a manual step.
 
-📜 License
+## Testing
 
-MIT License © 2025 Jentah Rehema
+```bash
+npm test
+```
+
+Unit tests cover month formatting without timezone drift, resume JSON
+normalisation and validation, the editor reducer (add/remove/reorder), and the
+ATS score, keyword extraction, and keyword matching logic. CI runs lint,
+typecheck, tests, and a production build on every push and pull request.
+
+## Privacy
+
+Resume Studio stores your name, email, and the resumes you create. Signed-in
+users can download everything as JSON (`Account → Export my data`) or delete the
+account and all resumes permanently (`Account → Delete account`). Public links
+are opt-in per resume and can be turned off at any time.
