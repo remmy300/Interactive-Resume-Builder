@@ -33,8 +33,15 @@ export async function requireUser(): Promise<SessionUser> {
   };
 }
 
-export function enforceRateLimit(userId: string, action: string) {
-  const { allowed, retryAfterSeconds } = checkRateLimit(`${userId}:${action}`);
+export function enforceRateLimit(
+  userId: string,
+  action: string,
+  limit?: number,
+) {
+  const { allowed, retryAfterSeconds } = checkRateLimit(
+    `${userId}:${action}`,
+    limit,
+  );
   if (!allowed) {
     throw new HttpError(
       429,

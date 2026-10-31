@@ -49,8 +49,10 @@ export const PATCH = withApiHandler<RouteContext>(
     const expectedUpdatedAt = parsed.data.updatedAt
       ? new Date(parsed.data.updatedAt)
       : null;
-    const hasValidExpectedDate =
-      expectedUpdatedAt !== null && !Number.isNaN(expectedUpdatedAt.getTime());
+    if (expectedUpdatedAt && Number.isNaN(expectedUpdatedAt.getTime())) {
+      throw new HttpError(400, "The updatedAt value is not a valid date.");
+    }
+    const hasValidExpectedDate = expectedUpdatedAt !== null;
 
     const result = await prisma.resume.updateMany({
       where: {

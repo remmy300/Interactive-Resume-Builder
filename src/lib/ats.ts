@@ -1,4 +1,16 @@
-import type { ResumeData, Skills } from "./resume-schema";
+import { ACTION_VERBS } from "./ats-data";
+import { hasText, resumeBullets, resumeText, skillItems } from "./ats-text";
+import type { ResumeData } from "./resume-schema";
+
+export { resumeBullets, resumeText, skillItems } from "./ats-text";
+export {
+  extractKeywords,
+  matchKeywords,
+  mergeSkillList,
+  suggestSkillsField,
+  type JobKeyword,
+  type KeywordMatch,
+} from "./ats-keywords";
 
 export type AtsStatus = "pass" | "warn" | "fail";
 
@@ -21,306 +33,7 @@ export interface AtsReport {
   failed: number;
 }
 
-export interface JobKeyword {
-  /** Normalised lowercase term used for matching. */
-  term: string;
-  /** Human readable label, preserving the casing found in the posting. */
-  display: string;
-  count: number;
-}
-
-export interface KeywordMatch {
-  matched: string[];
-  missing: string[];
-  score: number;
-}
-
-const hasText = (value: string) => value.trim().length > 0;
-
-/** Splits comma/enter separated skill text into clean items. */
-export function skillItems(value: string): string[] {
-  return value
-    .split(/[,\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-const ACTION_VERBS = new Set([
-  "achieved",
-  "architected",
-  "authored",
-  "automated",
-  "built",
-  "coached",
-  "collaborated",
-  "consolidated",
-  "created",
-  "cut",
-  "delivered",
-  "designed",
-  "developed",
-  "diagnosed",
-  "directed",
-  "drove",
-  "engineered",
-  "enhanced",
-  "established",
-  "expanded",
-  "generated",
-  "grew",
-  "implemented",
-  "improved",
-  "increased",
-  "initiated",
-  "integrated",
-  "introduced",
-  "launched",
-  "led",
-  "maintained",
-  "managed",
-  "mentored",
-  "migrated",
-  "optimised",
-  "optimized",
-  "orchestrated",
-  "organised",
-  "organized",
-  "owned",
-  "partnered",
-  "performed",
-  "pioneered",
-  "planned",
-  "produced",
-  "reduced",
-  "refactored",
-  "resolved",
-  "revamped",
-  "saved",
-  "scaled",
-  "secured",
-  "shipped",
-  "simplified",
-  "spearheaded",
-  "standardised",
-  "standardized",
-  "streamlined",
-  "supervised",
-  "tested",
-  "trained",
-  "transformed",
-  "wrote",
-]);
-
-/** Words that describe the posting rather than the skills being asked for. */
-const JOB_STOPWORDS = new Set([
-  "ability",
-  "about",
-  "above",
-  "across",
-  "additional",
-  "advantage",
-  "all",
-  "also",
-  "and",
-  "any",
-  "are",
-  "benefits",
-  "best",
-  "both",
-  "build",
-  "candidate",
-  "candidates",
-  "can",
-  "company",
-  "compensation",
-  "culture",
-  "day",
-  "days",
-  "degree",
-  "description",
-  "desired",
-  "develop",
-  "development",
-  "duties",
-  "each",
-  "either",
-  "employee",
-  "employer",
-  "environment",
-  "equal",
-  "etc",
-  "every",
-  "excellent",
-  "experience",
-  "experienced",
-  "familiar",
-  "familiarity",
-  "fast",
-  "from",
-  "full",
-  "good",
-  "great",
-  "have",
-  "help",
-  "high",
-  "hire",
-  "how",
-  "ideal",
-  "including",
-  "industry",
-  "into",
-  "job",
-  "join",
-  "knowledge",
-  "look",
-  "looking",
-  "make",
-  "many",
-  "may",
-  "minimum",
-  "more",
-  "most",
-  "must",
-  "need",
-  "nice",
-  "not",
-  "offer",
-  "one",
-  "opportunity",
-  "other",
-  "our",
-  "out",
-  "plus",
-  "position",
-  "preferred",
-  "provide",
-  "qualification",
-  "qualifications",
-  "related",
-  "required",
-  "requirement",
-  "requirements",
-  "responsibilities",
-  "responsibility",
-  "role",
-  "salary",
-  "should",
-  "skills",
-  "some",
-  "strong",
-  "such",
-  "team",
-  "teams",
-  "technical",
-  "than",
-  "that",
-  "the",
-  "their",
-  "them",
-  "then",
-  "there",
-  "these",
-  "they",
-  "this",
-  "those",
-  "through",
-  "time",
-  "tools",
-  "under",
-  "using",
-  "used",
-  "here",
-  "very",
-  "want",
-  "well",
-  "what",
-  "when",
-  "where",
-  "which",
-  "while",
-  "who",
-  "will",
-  "with",
-  "within",
-  "work",
-  "working",
-  "would",
-  "improve",
-  "improving",
-  "ensure",
-  "ensuring",
-  "deliver",
-  "delivering",
-  "support",
-  "supporting",
-  "participate",
-  "collaborate",
-  "collaborating",
-  "produce",
-  "seeking",
-  "we",
-  "will",
-  "you",
-  "your",
-  "our",
-  "their",
-  "they",
-  "this",
-  "that",
-  "these",
-  "those",
-  "year",
-  "years",
-]);
-
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Flattens the resume into plain text, the same text an ATS would read. */
-export function resumeText(data: ResumeData): string {
-  const { personal, skills } = data;
-  const parts: string[] = [
-    personal.name,
-    personal.title,
-    personal.phone,
-    personal.email,
-    personal.location,
-    personal.linkedIn,
-    personal.github,
-    personal.portfolio,
-    data.summary,
-  ];
-
-  for (const entry of data.experience) {
-    parts.push(
-      entry.company,
-      entry.role,
-      entry.startDate,
-      entry.endDate,
-      entry.current ? "Present" : "",
-      entry.description,
-    );
-  }
-  for (const entry of data.projects) {
-    parts.push(entry.title, entry.link, entry.description);
-  }
-  for (const entry of data.education) {
-    parts.push(entry.college, entry.degree, entry.startDate, entry.endDate);
-  }
-  for (const entry of data.certifications) {
-    parts.push(entry.name, entry.issuer, entry.date, entry.link);
-  }
-  parts.push(skills.languages, skills.technologies, skills.databases, skills.spoken);
-
-  return parts.filter(hasText).join("\n");
-}
-
-/** Achievement bullets exactly as they appear in the document. */
-export function resumeBullets(data: ResumeData): string[] {
-  return [...data.experience, ...data.projects]
-    .flatMap((entry) => entry.description.split("\n"))
-    .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
-    .filter(Boolean);
-}
 
 function clampScore(earned: number, total: number): number {
   if (total <= 0) return 0;
@@ -521,6 +234,20 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "content",
   );
 
+  const completeProjects = data.projects.filter(
+    (entry) => hasText(entry.title) && hasText(entry.description),
+  );
+  add(
+    "projects",
+    "Relevant projects",
+    completeProjects.length > 0 ? "pass" : "warn",
+    completeProjects.length > 0
+      ? `${completeProjects.length} project${completeProjects.length === 1 ? "" : "s"} show practical experience.`
+      : "Add one or two projects that demonstrate practical experience.",
+    5,
+    "content",
+  );
+
   add(
     "education",
     "Education",
@@ -585,141 +312,4 @@ export function analyzeResume(data: ResumeData): AtsReport {
     warnings: checks.filter((check) => check.status === "warn").length,
     failed: checks.filter((check) => check.status === "fail").length,
   };
-}
-
-/** Lowercase and strip punctuation so phrases compare predictably. */
-function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9+#.]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-const isKeywordWord = (word: string) =>
-  word.length >= 2 && !JOB_STOPWORDS.has(word) && !/^\d+$/.test(word);
-
-/**
- * Pulls the most useful terms out of a job description. Unigrams are ranked by
- * frequency; two-word phrases (e.g. "react native") are ranked higher because
- * they are more specific.
- */
-export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[] {
-  const pattern = /[A-Za-z][A-Za-z0-9+#.]*/g;
-  const tokens: Array<{
-    raw: string;
-    term: string;
-    start: number;
-    end: number;
-  }> = [];
-
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(jobDescription)) !== null) {
-    const raw = match[0].replace(/^[.]+|[.]+$/g, "");
-    const term = normalize(raw);
-    if (!term) continue;
-    tokens.push({
-      raw,
-      term,
-      start: match.index,
-      end: match.index + match[0].length,
-    });
-  }
-
-  const counts = new Map<string, { display: string; count: number }>();
-
-  const bump = (term: string, display: string, weight: number) => {
-    const existing = counts.get(term);
-    if (existing) {
-      existing.count += weight;
-    } else {
-      counts.set(term, { display, count: weight });
-    }
-  };
-
-  for (const token of tokens) {
-    if (isKeywordWord(token.term)) bump(token.term, token.raw, 1);
-  }
-
-  for (let index = 0; index < tokens.length - 1; index += 1) {
-    const first = tokens[index];
-    const second = tokens[index + 1];
-    if (!isKeywordWord(first.term) || !isKeywordWord(second.term)) continue;
-    // Only join words that are genuinely adjacent ("React Native"), never
-    // items in a comma-separated list ("React, TypeScript").
-    if (!/^\s+$/.test(jobDescription.slice(first.end, second.start))) continue;
-    bump(`${first.term} ${second.term}`, `${first.raw} ${second.raw}`, 2);
-  }
-
-  return [...counts.entries()]
-    .map(([term, value]) => ({ term, display: value.display, count: value.count }))
-    .sort(
-      (a, b) =>
-        b.count - a.count ||
-        b.term.length - a.term.length ||
-        a.term.localeCompare(b.term),
-    )
-    .slice(0, limit);
-}
-
-/** Compares the resume text with the job keywords, ignoring case. */
-export function matchKeywords(
-  data: ResumeData,
-  keywords: JobKeyword[],
-): KeywordMatch {
-  const haystack = ` ${normalize(resumeText(data))} `;
-  const matched: string[] = [];
-  const missing: string[] = [];
-
-  for (const keyword of keywords) {
-    if (haystack.includes(` ${keyword.term} `)) {
-      matched.push(keyword.display);
-    } else {
-      missing.push(keyword.display);
-    }
-  }
-
-  return {
-    matched,
-    missing,
-    score: keywords.length ? Math.round((matched.length / keywords.length) * 100) : 0,
-  };
-}
-
-/** Appends new skills without duplicating existing ones (case-insensitive). */
-export function mergeSkillList(existing: string, additions: string[]): string {
-  const items = skillItems(existing);
-  const seen = new Set(items.map((item) => item.toLowerCase()));
-
-  for (const addition of additions) {
-    const trimmed = addition.trim();
-    if (!trimmed || seen.has(trimmed.toLowerCase())) continue;
-    items.push(trimmed);
-    seen.add(trimmed.toLowerCase());
-  }
-
-  return items.join(", ");
-}
-
-/** Chooses the skills field that best fits a matched keyword. */
-export function suggestSkillsField(term: string): keyof Skills {
-  const value = term.toLowerCase();
-  if (
-    /(sql|postgres|mysql|mongo|redis|database|dynamo|sqlite|oracle|snowflake)/.test(value)
-  ) {
-    return "databases";
-  }
-  if (
-    /(english|spanish|french|german|portuguese|mandarin|japanese|arabic|hindi)/.test(value)
-  ) {
-    return "spoken";
-  }
-  if (
-    /^(javascript|typescript|python|java|kotlin|swift|ruby|php|go|golang|rust|scala|c\+\+|c#|c|elixir|haskell|perl|dart|bash)$/.test(
-      value,
-    )
-  ) {
-    return "languages";
-  }
-  return "technologies";
 }

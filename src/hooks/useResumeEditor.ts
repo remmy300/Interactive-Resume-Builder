@@ -13,7 +13,9 @@ import {
   normalizeResumeData,
   type ResumeData,
 } from "@/lib/resume-schema";
+import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import { resumeReducer } from "@/lib/resume-reducer";
+import { checkResumeValidity } from "@/lib/resume-validity";
 
 export interface ResumeSummary {
   id: string;
@@ -34,32 +36,6 @@ interface ListResponse {
   nextSkip: number | null;
 }
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new ApiError(
-      body?.error ?? `Request failed with status ${response.status}.`,
-      response.status,
-    );
-  }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
-}
-
-const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 const DEFAULT_TITLE = "Untitled resume";
 const AUTOSAVE_DELAY_MS = 1200;
 
@@ -163,11 +139,25 @@ export function useResumeEditor() {
     setError(null);
   }, []);
 
+  const importResume = useCallback((imported: ResumeData, nextTitle: string) => {
+    setResumeId(null);
+    setTitle(nextTitle.trim() || DEFAULT_TITLE);
+    setUpdatedAt(null);
+    dispatch({ type: "replace", data: imported });
+    setSaveState("idle");
+    setError(null);
+  }, []);
+
   const save = useCallback(
     async (options: { silent?: boolean } = {}): Promise<boolean> => {
       const trimmedTitle = title.trim();
       if (!trimmedTitle) {
         setError("Give your resume a title before saving.");
+        return false;
+      }
+      const validity = checkResumeValidity(data);
+      if (!validity.valid) {
+        setError(`Add ${validity.missing.join(", ")} before saving.`);
         return false;
       }
       if (savingRef.current) return false;
@@ -348,6 +338,7 @@ export function useResumeEditor() {
     clearError: () => setError(null),
     openResume,
     newResume,
+    importResume,
     save,
     removeResume,
     restoreResume,

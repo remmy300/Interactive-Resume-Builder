@@ -113,9 +113,9 @@ body {
 }
 
 .cv-entry__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  justify-content: space-between;
   gap: 10pt;
 }
 
@@ -130,6 +130,7 @@ body {
   font-size: 9pt;
   color: #64748b;
   white-space: nowrap;
+  text-align: right;
 }
 
 .cv-entry__sub {
@@ -327,6 +328,40 @@ body {
     box-shadow: none !important;
     margin: 0 !important;
     min-height: auto;
+  }
+
+  /* Keep a section heading with the content that follows it, and never split a
+     role or a bullet across pages. */
+  .cv-page {
+    min-height: auto !important;
+  }
+
+  .cv-header,
+  .cv-section__title,
+  .cv-entry__row {
+    break-after: avoid;
+    page-break-after: avoid;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .cv-entry,
+  .cv-bullets li,
+  .cv-skill-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .cv-bullets,
+  .cv-section {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .cv-link,
+  .cv-contact a {
+    color: #000000;
+    text-decoration: underline;
   }
 
   * {

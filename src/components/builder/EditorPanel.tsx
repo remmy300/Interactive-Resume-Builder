@@ -3,6 +3,7 @@
 import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import TextField from "@mui/material/TextField";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import TemplatePicker from "@/components/editor/TemplatePicker";
 import {
   CertificationsSection,
@@ -15,6 +16,7 @@ import {
 } from "@/components/editor/EditorSections";
 import ResumeSwitcher from "@/components/builder/ResumeSwitcher";
 import type { useResumeEditor } from "@/hooks/useResumeEditor";
+import { checkResumeValidity } from "@/lib/resume-validity";
 
 interface EditorPanelProps {
   editor: ReturnType<typeof useResumeEditor>;
@@ -23,6 +25,7 @@ interface EditorPanelProps {
   onNewResume: () => void;
   onDeleteResume: () => void;
   onSave: () => void;
+  onImport: () => void;
 }
 
 export function EditorPanel({
@@ -32,7 +35,10 @@ export function EditorPanel({
   onNewResume,
   onDeleteResume,
   onSave,
+  onImport,
 }: EditorPanelProps) {
+  const validity = checkResumeValidity(editor.data);
+
   return (
     <aside id="editor" className={className} aria-label="Resume editor">
       <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -59,14 +65,29 @@ export function EditorPanel({
 
         <div className="flex gap-2">
           <Button
+            variant="outlined"
+            startIcon={<UploadFileIcon />}
+            onClick={onImport}
+            disabled={editor.isLoading}
+          >
+            Import CV
+          </Button>
+          <Button
             variant="contained"
             fullWidth
             onClick={onSave}
-            disabled={editor.isSaving || editor.isLoading || !editor.isDirty}
+            disabled={
+              editor.isSaving || editor.isLoading || !editor.isDirty || !validity.valid
+            }
           >
             {editor.isSaving ? "Saving…" : "Save resume"}
           </Button>
         </div>
+        {!validity.valid && (
+          <p className="text-xs text-slate-500">
+            Add {validity.missing.join(", ")} to enable saving and PDF export.
+          </p>
+        )}
 
         <TemplatePicker
           value={editor.data.template}

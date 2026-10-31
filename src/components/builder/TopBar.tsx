@@ -24,6 +24,9 @@ interface TopBarProps {
   saveState: SaveState;
   hasResume: boolean;
   atsScore: number;
+  canSave: boolean;
+  canExport: boolean;
+  blockedReason: string;
   onSave: () => void;
   onPreview: () => void;
   onOpenAts: () => void;
@@ -63,6 +66,9 @@ export function TopBar({
   saveState,
   hasResume,
   atsScore,
+  canSave,
+  canExport,
+  blockedReason,
   onSave,
   onPreview,
   onOpenAts,
@@ -99,14 +105,14 @@ export function TopBar({
         />
 
         <div className="ml-auto flex items-center gap-2">
-          <Tooltip title="Save (Ctrl/⌘ + S)">
+          <Tooltip title={blockedReason || "Save (Ctrl/⌘ + S)"}>
             <span>
               <Button
                 size="small"
                 variant="outlined"
                 startIcon={<SaveIcon />}
                 onClick={onSave}
-                disabled={!isDirty || isSaving || isLoading}
+                disabled={!isDirty || isSaving || isLoading || !canSave}
               >
                 Save
               </Button>
@@ -124,15 +130,19 @@ export function TopBar({
           <Button size="small" variant="text" onClick={onPreview}>
             Preview
           </Button>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<PrintIcon />}
-            onClick={onPrint}
-            disabled={isLoading}
-          >
-            PDF
-          </Button>
+          <Tooltip title={blockedReason || "Download a text-based PDF"}>
+            <span>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<PrintIcon />}
+                onClick={onPrint}
+                disabled={isLoading || !canExport}
+              >
+                PDF
+              </Button>
+            </span>
+          </Tooltip>
           <IconButton
             aria-label="Account menu"
             aria-haspopup="menu"

@@ -10,12 +10,14 @@ import Tabs from "@mui/material/Tabs";
 import AtsDialog from "@/components/builder/AtsDialog";
 import ConfirmDialog from "@/components/builder/ConfirmDialog";
 import EditorPanel from "@/components/builder/EditorPanel";
+import ImportCvDialog from "@/components/builder/ImportCvDialog";
 import PreviewDialog from "@/components/builder/PreviewDialog";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import TopBar from "@/components/builder/TopBar";
 import { ResumePreview } from "@/components/preview/ResumePreview";
 import { useResumeEditor } from "@/hooks/useResumeEditor";
 import { analyzeResume } from "@/lib/ats";
+import { checkResumeValidity } from "@/lib/resume-validity";
 import { safeFileName } from "@/utils/Form";
 
 interface BuilderProps {
@@ -37,6 +39,7 @@ export default function Builder({ user }: BuilderProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [atsOpen, setAtsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(
     null,
   );
@@ -51,6 +54,10 @@ export default function Builder({ user }: BuilderProps) {
 
   const { save, isDirty, resumeId, items, data, title, currentItem } = editor;
   const atsScore = useMemo(() => analyzeResume(data).score, [data]);
+  const validity = useMemo(() => checkResumeValidity(data), [data]);
+  const blockedReason = validity.valid
+    ? ""
+    : `Add ${validity.missing.join(", ")} to enable this.`;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -224,6 +231,9 @@ export default function Builder({ user }: BuilderProps) {
           saveState={editor.saveState}
           hasResume={Boolean(resumeId)}
           atsScore={atsScore}
+          canSave={validity.valid}
+          canExport={validity.valid}
+          blockedReason={blockedReason}
           onSave={() => void editor.save()}
           onPreview={() => setPreviewOpen(true)}
           onOpenAts={() => setAtsOpen(true)}
@@ -256,6 +266,7 @@ export default function Builder({ user }: BuilderProps) {
               setPendingDelete({ id: currentItem.id, title: currentItem.title });
             }}
             onSave={() => void editor.save()}
+            onImport={() => setImportOpen(true)}
           />
 
           <PreviewPanel
@@ -281,6 +292,22 @@ export default function Builder({ user }: BuilderProps) {
           dispatch={editor.dispatch}
           onClose={() => setAtsOpen(false)}
         />
+
+        {importOpen && (
+          <ImportCvDialog
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            onImported={(imported, importedTitle) => {
+              editor.importResume(imported, importedTitle);
+              setImportOpen(false);
+              setNotice({
+                message:
+                  "CV imported into a new draft. Review the sections, then save it as a new resume.",
+                severity: "success",
+              });
+            }}
+          />
+        )}
 
         <ConfirmDialog
           open={Boolean(pendingNavigation)}

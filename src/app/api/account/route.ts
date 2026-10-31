@@ -1,7 +1,7 @@
 import { enforceRateLimit, requireUser, withApiHandler } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
-/** Permanently deletes the signed-in account and all of its resumes. */
+/** Permanently deletes the signed-in account and everything linked to it. */
 export const DELETE = withApiHandler(async () => {
   const user = await requireUser();
   enforceRateLimit(user.id, "account-write");

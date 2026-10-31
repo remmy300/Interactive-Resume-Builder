@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import {
   enforceRateLimit,
   HttpError,
@@ -60,10 +61,12 @@ export const POST = withApiHandler<RouteContext>(
           select: { isPublic: true, publicSlug: true },
         });
         return jsonResponse(updated);
-      } catch {
-        if (attempt === 4) {
-          throw new HttpError(500, "Could not create a share link. Try again.");
-        }
+      } catch (error) {
+        // Only a slug collision is worth retrying; surface anything else.
+        const isCollision =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002";
+        if (!isCollision) throw error;
       }
     }
 
