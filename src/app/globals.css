@@ -22,6 +22,12 @@ body {
   outline-offset: 2px;
 }
 
+/* MUI inputs draw their own focus border; the global outline would add a second. */
+.MuiInputBase-input:focus-visible,
+.MuiSelect-select:focus-visible {
+  outline: none;
+}
+
 /* ---------------------------------------------------------------------------
    Resume document
    The page is measured in millimetres because it is exported through the

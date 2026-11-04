@@ -17,6 +17,7 @@ import TopBar from "@/components/builder/TopBar";
 import { ResumePreview } from "@/components/preview/ResumePreview";
 import { useResumeEditor } from "@/hooks/useResumeEditor";
 import { analyzeResume } from "@/lib/ats";
+import { openEditorSection, type EditorSectionId } from "@/lib/editor-sections";
 import { checkResumeValidity } from "@/lib/resume-validity";
 import { safeFileName } from "@/utils/Form";
 
@@ -27,7 +28,10 @@ interface BuilderProps {
   };
 }
 
-type PendingNavigation = { kind: "open"; id: string } | { kind: "new" };
+type PendingNavigation =
+  | { kind: "open"; id: string }
+  | { kind: "new" }
+  | { kind: "import" };
 
 interface Notice {
   message: string;
@@ -91,9 +95,28 @@ export default function Builder({ user }: BuilderProps) {
     if (!pending) return;
     if (pending.kind === "open") {
       void editor.openResume(pending.id);
+    } else if (pending.kind === "import") {
+      setImportOpen(true);
     } else {
       editor.newResume();
     }
+  };
+
+  // Importing replaces the draft, so unsaved edits get the same safeguard as
+  // switching resumes.
+  const requestImport = () => {
+    if (isDirty) {
+      setPendingNavigation({ kind: "import" });
+      return;
+    }
+    setImportOpen(true);
+  };
+
+  const goToSection = (section: EditorSectionId) => {
+    setImportOpen(false);
+    setMobileView("edit");
+    // Let the dialog close first so the scroll is not fought by its lock.
+    window.setTimeout(() => openEditorSection(section), 200);
   };
 
   const requestNewResume = () => {
@@ -266,7 +289,7 @@ export default function Builder({ user }: BuilderProps) {
               setPendingDelete({ id: currentItem.id, title: currentItem.title });
             }}
             onSave={() => void editor.save()}
-            onImport={() => setImportOpen(true)}
+            onImport={requestImport}
           />
 
           <PreviewPanel
@@ -297,13 +320,15 @@ export default function Builder({ user }: BuilderProps) {
           <ImportCvDialog
             open={importOpen}
             onClose={() => setImportOpen(false)}
-            onImported={(imported, importedTitle) => {
+            onGoToSection={goToSection}
+            onImported={(imported, importedTitle, warnings) => {
               editor.importResume(imported, importedTitle);
-              setImportOpen(false);
               setNotice({
                 message:
-                  "CV imported into a new draft. Review the sections, then save it as a new resume.",
-                severity: "success",
+                  warnings.length > 0
+                    ? `CV imported. ${warnings.join(" ")} Review each section, then save.`
+                    : "CV imported into a new draft. Review the sections, then save it as a new resume.",
+                severity: warnings.length > 0 ? "warning" : "success",
               });
             }}
           />
@@ -312,7 +337,11 @@ export default function Builder({ user }: BuilderProps) {
         <ConfirmDialog
           open={Boolean(pendingNavigation)}
           title="You have unsaved changes"
-          description="Save your latest edits before switching, or discard them and continue."
+          description={
+            validity.valid
+              ? "Save your latest edits before switching, or discard them and continue."
+              : `You cannot save yet: add ${validity.missing.join(", ")}. You can still discard the changes and continue.`
+          }
           confirmLabel="Discard changes"
           confirmColor="error"
           busy={isBusy}
@@ -321,6 +350,7 @@ export default function Builder({ user }: BuilderProps) {
           secondaryAction={{
             label: "Save & continue",
             onClick: () => void saveAndContinue(),
+            disabled: !validity.valid,
           }}
         />
 

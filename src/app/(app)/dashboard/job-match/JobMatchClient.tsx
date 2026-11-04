@@ -186,7 +186,7 @@ export function JobMatchClient() {
               minRows={5}
               fullWidth
               helperText="Processed in your browser. Nothing is uploaded."
-              inputProps={{ maxLength: 12000 }}
+              slotProps={{ htmlInput: { maxLength: 12000 } }}
             />
           </section>
 
@@ -251,7 +251,7 @@ export function JobMatchClient() {
                               onChange={() =>
                                 setSelectedSkills((current) => toggle(current, skill))
                               }
-                              inputProps={{ "aria-label": `Add ${skill}` }}
+                              slotProps={{ input: { "aria-label": `Add ${skill}` } }}
                             />
                             <span className="text-sm text-slate-800">{skill}</span>
                           </li>
@@ -322,8 +322,8 @@ export function JobMatchClient() {
                                 toggle(current, suggestion.id),
                               )
                             }
-                            inputProps={{
-                              "aria-label": `Apply suggestion for ${suggestion.entryLabel}`,
+                            slotProps={{
+                              input: { "aria-label": `Apply suggestion for ${suggestion.entryLabel}` },
                             }}
                           />
                           <div className="min-w-0 flex-1">
@@ -346,9 +346,11 @@ export function JobMatchClient() {
                               fullWidth
                               size="small"
                               sx={{ mt: 1.5 }}
-                              inputProps={{
+                              slotProps={{
+                                htmlInput: {
                                 maxLength: 500,
                                 "aria-label": "Suggested bullet text",
+                                },
                               }}
                             />
                             <ul className="mt-1.5 list-disc pl-4 text-xs text-slate-600">

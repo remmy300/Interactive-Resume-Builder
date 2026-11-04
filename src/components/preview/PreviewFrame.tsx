@@ -13,17 +13,20 @@ interface PreviewFrameProps {
   onMetrics?: (metrics: PreviewMetrics) => void;
 }
 
+// Empty space shown between pages on screen. It is not part of the document.
+const PAGE_GAP_PX = 24;
+
 /**
  * Scales the A4 page down to the available width, measures how many pages the
- * document needs, and draws page-break guides on screen. Print output is still
- * produced by the browser from the real, unscaled document.
+ * document needs, and shows each page as its own sheet with empty space between
+ * them. Every sheet shows exactly the slice of the document that the browser
+ * will put on that page when printing, so no content is hidden by the gap.
  */
 export function PreviewFrame({ children, onMetrics }: PreviewFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const onMetricsRef = useRef(onMetrics);
   const [scale, setScale] = useState(1);
-  const [height, setHeight] = useState(A4_HEIGHT_PX);
   const [metrics, setMetrics] = useState<PreviewMetrics>(() =>
     getPreviewMetrics(A4_HEIGHT_PX),
   );
@@ -42,7 +45,6 @@ export function PreviewFrame({ children, onMetrics }: PreviewFrameProps) {
       const contentHeight = Math.max(content.scrollHeight, A4_HEIGHT_PX);
       const nextMetrics = getPreviewMetrics(contentHeight);
       setScale(nextScale);
-      setHeight(contentHeight * nextScale);
       setMetrics(nextMetrics);
       onMetricsRef.current?.(nextMetrics);
     };
@@ -54,11 +56,13 @@ export function PreviewFrame({ children, onMetrics }: PreviewFrameProps) {
     return () => observer.disconnect();
   }, []);
 
+  const pages = metrics.pages;
+  const totalHeight = pages * A4_HEIGHT_PX + (pages - 1) * PAGE_GAP_PX;
+
   return (
     <div ref={containerRef} className="w-full">
-      <div style={{ height }} className="relative">
+      <div style={{ height: totalHeight * scale }} className="relative">
         <div
-          ref={contentRef}
           style={{
             width: A4_WIDTH_PX,
             transform: `scale(${scale})`,
@@ -66,17 +70,23 @@ export function PreviewFrame({ children, onMetrics }: PreviewFrameProps) {
           }}
           className="absolute left-0 top-0"
         >
-          {children}
-          {Array.from({ length: Math.max(0, metrics.pages - 1) }).map((_, index) => (
+          {Array.from({ length: pages }).map((_, index) => (
             <div
               key={index}
-              aria-hidden
-              className="screen-only pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-slate-300"
-              style={{ top: (index + 1) * A4_HEIGHT_PX }}
+              aria-hidden={index > 0 || undefined}
+              className="relative overflow-hidden bg-white shadow-sm"
+              style={{
+                height: A4_HEIGHT_PX,
+                marginTop: index === 0 ? 0 : PAGE_GAP_PX,
+              }}
             >
-              <span className="absolute right-3 top-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Page {index + 2}
-              </span>
+              <div
+                ref={index === 0 ? contentRef : undefined}
+                className="absolute left-0"
+                style={{ width: A4_WIDTH_PX, top: -index * A4_HEIGHT_PX }}
+              >
+                {children}
+              </div>
             </div>
           ))}
         </div>

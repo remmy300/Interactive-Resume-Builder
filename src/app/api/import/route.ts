@@ -26,6 +26,26 @@ const hasSignature = (bytes: Uint8Array, signature: number[]) =>
 const UNSUPPORTED =
   "Upload a PDF, DOCX, TXT, or Markdown file. For other formats, export to PDF first.";
 
+/**
+ * Words such as "GitHub" are often hyperlinks whose address never appears in the
+ * extracted text. Read the link annotations so the address is not lost.
+ */
+async function readPdfLinks(pdf: Awaited<ReturnType<typeof getDocumentProxy>>) {
+  const links: string[] = [];
+  try {
+    for (let number = 1; number <= pdf.numPages; number += 1) {
+      const page = await pdf.getPage(number);
+      for (const annotation of await page.getAnnotations()) {
+        const url = (annotation as { url?: string }).url;
+        if (typeof url === "string" && /^https?:\/\//i.test(url)) links.push(url);
+      }
+    }
+  } catch {
+    // Links are a bonus; never fail the import because of them.
+  }
+  return [...new Set(links)].slice(0, 10);
+}
+
 export const POST = withApiHandler(async (request) => {
   const user = await requireUser();
   enforceRateLimit(user.id, "cv-import", IMPORT_LIMIT_PER_MINUTE);
@@ -46,6 +66,7 @@ export const POST = withApiHandler(async (request) => {
   const fileName = file.name.toLowerCase();
   const bytes = new Uint8Array(await file.arrayBuffer());
   let text = "";
+  let links: string[] = [];
 
   try {
     if (fileName.endsWith(".pdf")) {
@@ -59,6 +80,7 @@ export const POST = withApiHandler(async (request) => {
       }
       const extracted = await extractText(pdf, { mergePages: true });
       text = extracted.text;
+      links = await readPdfLinks(pdf);
     } else if (fileName.endsWith(".docx")) {
       if (!hasSignature(bytes, ZIP_SIGNATURE)) throw new HttpError(415, UNSUPPORTED);
       const extracted = await mammoth.extractRawText({
@@ -90,6 +112,6 @@ export const POST = withApiHandler(async (request) => {
     throw new HttpError(413, "That file contains too much text to import.");
   }
 
-  const result = parseResumeText(text);
+  const result = parseResumeText(text, links);
   return jsonResponse({ ...result, fileName: file.name });
 });

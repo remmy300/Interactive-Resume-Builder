@@ -21,11 +21,6 @@ function toLines(value: string): string[] {
   return value.length === 0 ? [""] : value.split("\n");
 }
 
-/**
- * One input per achievement, stored as newline-separated text. Pressing Enter
- * inserts a bullet below the current line instead of requiring a hint that says
- * "one item per line".
- */
 export function BulletEditor({
   label,
   value,
@@ -114,7 +109,7 @@ export function BulletEditor({
             fullWidth
             multiline
             maxRows={4}
-            inputProps={{ maxLength: 500 }}
+            slotProps={{ htmlInput: { maxLength: 500 } }}
             aria-label={`${label} bullet ${index + 1}`}
           />
           <div className="flex shrink-0 items-center">
@@ -146,7 +141,11 @@ export function BulletEditor({
         </div>
       ))}
 
-      <Button size="small" startIcon={<AddIcon />} onClick={() => addLine(lines.length - 1)}>
+      <Button
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={() => addLine(lines.length - 1)}
+      >
         Add bullet
       </Button>
     </div>

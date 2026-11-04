@@ -8,6 +8,7 @@ import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import { analyzeResume, type AtsStatus } from "@/lib/ats";
 import { useResumeLibrary } from "@/hooks/useResumeLibrary";
+import { CheckExamples, ScoreCaps, SCORE_NOTE } from "@/components/dashboard/CheckExamples";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 
@@ -29,8 +30,12 @@ const GROUP_TITLES = {
 export function CvCheckClient() {
   const library = useResumeLibrary();
   const report = library.record ? analyzeResume(library.record.data) : null;
-  const actionable =
-    report?.checks.filter((check) => check.status !== "pass") ?? [];
+  // Biggest score impact first, so the list is a to-do order, not a dump.
+  const impact = (check: { status: AtsStatus; weight: number }) =>
+    check.weight * (check.status === "fail" ? 1 : 0.5);
+  const actionable = (
+    report?.checks.filter((check) => check.status !== "pass") ?? []
+  ).sort((a, b) => impact(b) - impact(a));
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:py-8">
@@ -101,6 +106,9 @@ export function CvCheckClient() {
                     {report.passed} passing
                   </p>
                 </div>
+                <p className="mt-3 text-sm font-medium text-slate-800">{report.verdict}</p>
+                <ScoreCaps report={report} />
+                <p className="mt-3 text-xs text-slate-500">{SCORE_NOTE}</p>
                 <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
                   <div
                     className="h-full rounded-full bg-slate-900"
@@ -111,7 +119,7 @@ export function CvCheckClient() {
 
               <section className="rounded-xl border border-slate-200 bg-white p-5">
                 <h2 className="text-base font-semibold text-slate-900">
-                  Fix these first
+                  Fix these first (biggest impact first)
                 </h2>
                 {actionable.length === 0 ? (
                   <p className="mt-2 text-sm text-emerald-700">
@@ -135,6 +143,7 @@ export function CvCheckClient() {
                               </span>
                             </div>
                             <p className="mt-0.5 text-sm text-slate-600">{check.detail}</p>
+                            <CheckExamples examples={check.examples} />
                           </div>
                         </li>
                       );
@@ -183,6 +192,7 @@ export function CvCheckClient() {
                                   {check.label}
                                 </p>
                                 <p className="text-sm text-slate-600">{check.detail}</p>
+                                <CheckExamples examples={check.examples} />
                               </div>
                             </li>
                           );

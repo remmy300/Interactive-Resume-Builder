@@ -156,3 +156,77 @@ describe("suggestSkillsField", () => {
     expect(suggestSkillsField("Kubernetes")).toBe("technologies");
   });
 });
+
+describe("analyzeResume honesty", () => {
+  const find = (data: ResumeData, id: string) =>
+    analyzeResume(data).checks.find((check) => check.id === id);
+
+  function vagueResume(): ResumeData {
+    const data = completeResume();
+    data.summary = "Hard-working team player, passionate about results-driven work.";
+    data.experience[0].description = [
+      "Responsible for the website",
+      "Worked on various tasks",
+      "Helped with bug fixes",
+      "Duties included meetings",
+    ].join("\n");
+    return data;
+  }
+
+  it("does not let a vague resume score well", () => {
+    const report = analyzeResume(vagueResume());
+    expect(report.score).toBeLessThan(70);
+    expect(report.caps.length).toBeGreaterThan(0);
+    expect(report.rawScore).toBeGreaterThan(report.score);
+  });
+
+  it("flags vague phrases and buzzwords with examples", () => {
+    const data = vagueResume();
+    expect(find(data, "weak-phrases")?.status).toBe("fail");
+    expect(find(data, "weak-phrases")?.examples?.length).toBeGreaterThan(0);
+    expect(find(data, "cliches")?.status).not.toBe("pass");
+  });
+
+  it("does not treat a year as a measurable result", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "Built the portal in 2023",
+      "Led the redesign in 2022",
+      "Shipped the app in 2021",
+    ].join("\n");
+    expect(find(data, "numbers")?.status).toBe("fail");
+  });
+
+  it("flags end dates before start dates and long gaps", () => {
+    const data = completeResume();
+    data.experience.push({
+      id: "e2",
+      company: "Old Co",
+      role: "Developer",
+      description: "Built internal tools that saved 10 hours a week.",
+      startDate: "2019-06",
+      endDate: "2019-01",
+      current: false,
+    });
+    expect(find(data, "dates")?.status).toBe("fail");
+
+    const gap = completeResume();
+    gap.experience[0].startDate = "2022-01";
+    gap.experience.push({
+      id: "e3",
+      company: "Prior Co",
+      role: "Developer",
+      description: "Built tools used by 40 staff.",
+      startDate: "2019-01",
+      endDate: "2020-01",
+      current: false,
+    });
+    expect(find(gap, "dates")?.status).toBe("warn");
+  });
+
+  it("flags listed skills that the experience never shows", () => {
+    const data = completeResume();
+    data.skills.technologies = "Kubernetes, Terraform, Ansible, Go, Rust";
+    expect(find(data, "skills-evidence")?.status).not.toBe("pass");
+  });
+});

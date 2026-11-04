@@ -60,7 +60,7 @@ export function EditorPanel({
           disabled={editor.isLoading}
           fullWidth
           helperText="Used in your saved list and as the PDF file name."
-          inputProps={{ maxLength: 100 }}
+          slotProps={{ htmlInput: { maxLength: 100 } }}
         />
 
         <div className="flex gap-2">
@@ -77,7 +77,10 @@ export function EditorPanel({
             fullWidth
             onClick={onSave}
             disabled={
-              editor.isSaving || editor.isLoading || !editor.isDirty || !validity.valid
+              editor.isSaving ||
+              editor.isLoading ||
+              !editor.isDirty ||
+              !validity.valid
             }
           >
             {editor.isSaving ? "Saving…" : "Save resume"}
@@ -106,14 +109,12 @@ export function EditorPanel({
           <ProjectsSection data={editor.data} dispatch={editor.dispatch} />
           <EducationSection data={editor.data} dispatch={editor.dispatch} />
           <SkillsSection data={editor.data} dispatch={editor.dispatch} />
-          <CertificationsSection data={editor.data} dispatch={editor.dispatch} />
+          <CertificationsSection
+            data={editor.data}
+            dispatch={editor.dispatch}
+          />
         </div>
       </fieldset>
-
-      <p className="px-1 pt-3 text-xs text-slate-500">
-        Saved resumes autosave about a second after you stop typing. Use
-        Ctrl/⌘ + S to save immediately.
-      </p>
     </aside>
   );
 }

@@ -15,24 +15,25 @@ export function PersonalSection({ data, dispatch }: SectionProps) {
 
   return (
     <SectionCard
+      id="personal"
       title="Personal details"
       hint="Name, role, and how recruiters reach you"
       defaultExpanded
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <TextField label="Full name" required {...field("name")} inputProps={{ maxLength: 120 }} />
+        <TextField label="Full name" required {...field("name")} slotProps={{ htmlInput: { maxLength: 120 } }} />
         <TextField
           label="Professional title"
           placeholder="Frontend Developer"
           {...field("title")}
-          inputProps={{ maxLength: 120 }}
+          slotProps={{ htmlInput: { maxLength: 120 } }}
         />
-        <TextField label="Email" type="email" {...field("email")} inputProps={{ maxLength: 254 }} />
-        <TextField label="Phone" type="tel" {...field("phone")} inputProps={{ maxLength: 50 }} />
-        <TextField label="Location" placeholder="City, Country" {...field("location")} inputProps={{ maxLength: 120 }} />
-        <TextField label="LinkedIn" placeholder="linkedin.com/in/you" {...field("linkedIn")} inputProps={{ maxLength: 500 }} />
-        <TextField label="GitHub" placeholder="github.com/you" {...field("github")} inputProps={{ maxLength: 500 }} />
-        <TextField label="Portfolio" placeholder="you.dev" {...field("portfolio")} inputProps={{ maxLength: 500 }} />
+        <TextField label="Email" type="email" {...field("email")} slotProps={{ htmlInput: { maxLength: 254 } }} />
+        <TextField label="Phone" type="tel" {...field("phone")} slotProps={{ htmlInput: { maxLength: 50 } }} />
+        <TextField label="Location" placeholder="City, Country" {...field("location")} slotProps={{ htmlInput: { maxLength: 120 } }} />
+        <TextField label="LinkedIn" placeholder="linkedin.com/in/you" {...field("linkedIn")} slotProps={{ htmlInput: { maxLength: 500 } }} />
+        <TextField label="GitHub" placeholder="github.com/you" {...field("github")} slotProps={{ htmlInput: { maxLength: 500 } }} />
+        <TextField label="Portfolio" placeholder="you.dev" {...field("portfolio")} slotProps={{ htmlInput: { maxLength: 500 } }} />
       </div>
     </SectionCard>
   );
@@ -40,7 +41,7 @@ export function PersonalSection({ data, dispatch }: SectionProps) {
 
 export function SummarySection({ data, dispatch }: SectionProps) {
   return (
-    <SectionCard title="Summary" hint="Two or three sentences about your focus">
+    <SectionCard id="summary" title="Summary" hint="Two or three sentences about your focus">
       <TextField
         label="Professional summary"
         value={data.summary}
@@ -50,7 +51,7 @@ export function SummarySection({ data, dispatch }: SectionProps) {
         minRows={4}
         fullWidth
         helperText={`${data.summary.length}/2000 characters`}
-        inputProps={{ maxLength: 2000 }}
+        slotProps={{ htmlInput: { maxLength: 2000 } }}
       />
     </SectionCard>
   );
@@ -59,7 +60,7 @@ export function SummarySection({ data, dispatch }: SectionProps) {
 
 export function SkillsSection({ data, dispatch }: SectionProps) {
   return (
-    <SectionCard title="Skills" hint="Tags render as chips in the resume">
+    <SectionCard id="skills" title="Skills" hint="Tags render as chips in the resume">
       <div className="space-y-4">
         <TagInput
           label="Programming languages"

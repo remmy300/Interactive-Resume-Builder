@@ -83,3 +83,24 @@ describe("parseResumeText", () => {
     expect(warnings.length).toBeGreaterThan(0);
   });
 });
+
+describe("professional title", () => {
+  const build = (titleLine: string) =>
+    parseResumeText(`Alex Morgan\n${titleLine}\nalex@example.com\n\nSKILLS\nTypeScript, React`).data
+      .personal.title;
+
+  it("keeps hyphenated words like Full-stack", () => {
+    expect(build("Full-stack Developer")).toBe("Full-stack Developer");
+    expect(build("Senior Front-End Engineer")).toBe("Senior Front-End Engineer");
+  });
+
+  it("keeps multi-word titles intact", () => {
+    expect(build("Full Stack Developer")).toBe("Full Stack Developer");
+  });
+
+  it("still drops detail after a real separator", () => {
+    expect(build("Full-stack Developer | Lagos, Nigeria")).toBe("Full-stack Developer");
+    expect(build("Backend Engineer – Remote")).toBe("Backend Engineer");
+    expect(build("Backend Engineer - Remote")).toBe("Backend Engineer");
+  });
+});

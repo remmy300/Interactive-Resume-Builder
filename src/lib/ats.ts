@@ -1,4 +1,5 @@
 import { ACTION_VERBS } from "./ats-data";
+import { experienceYears, isQuantified, leadingWord, qualityChecks } from "./ats-quality";
 import { hasText, resumeBullets, resumeText, skillItems } from "./ats-text";
 import type { ResumeData } from "./resume-schema";
 
@@ -23,10 +24,17 @@ export interface AtsCheck {
   detail: string;
   weight: number;
   group: AtsGroup;
+  /** Concrete lines or items from the resume that triggered the check. */
+  examples?: string[];
 }
 
 export interface AtsReport {
   score: number;
+  /** Score before honesty caps are applied. */
+  rawScore: number;
+  /** Why the score is capped, if it is. */
+  caps: string[];
+  verdict: string;
   checks: AtsCheck[];
   passed: number;
   warnings: number;
@@ -38,6 +46,13 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function clampScore(earned: number, total: number): number {
   if (total <= 0) return 0;
   return Math.round((earned / total) * 100);
+}
+
+function verdictFor(score: number): string {
+  if (score >= 85) return "Strong. Ready to send once tailored to the job.";
+  if (score >= 70) return "Good, but a few fixes will make it stand out.";
+  if (score >= 50) return "Needs work before you apply.";
+  return "Not ready. Major gaps would get this screened out.";
 }
 
 /** Scores a resume against the checks an ATS and a recruiter care about. */
@@ -59,11 +74,12 @@ export function analyzeResume(data: ResumeData): AtsReport {
   const completeEducation = data.education.filter(
     (entry) => hasText(entry.college) || hasText(entry.degree),
   );
-  const quantified = bullets.filter((line) => /\d/.test(line)).length;
-  const actionBullets = bullets.filter((line) => {
-    const first = line.replace(/^[^A-Za-z]+/, "").split(/\s+/)[0] ?? "";
-    return ACTION_VERBS.has(first.toLowerCase());
-  }).length;
+  const unquantified = bullets.filter((line) => !isQuantified(line));
+  const quantified = bullets.length - unquantified.length;
+  const withoutVerb = bullets.filter((line) => !ACTION_VERBS.has(leadingWord(line)));
+  const actionBullets = bullets.length - withoutVerb.length;
+  const sample = (lines: string[]) =>
+    lines.slice(0, 3).map((line) => (line.length > 110 ? `${line.slice(0, 109)}…` : line));
 
   const add = (
     id: string,
@@ -72,7 +88,8 @@ export function analyzeResume(data: ResumeData): AtsReport {
     detail: string,
     weight: number,
     group: AtsGroup,
-  ) => checks.push({ id, label, status, detail, weight, group });
+    examples?: string[],
+  ) => checks.push({ id, label, status, detail, weight, group, examples });
 
   add(
     "name",
@@ -194,16 +211,17 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "Measurable results",
     bullets.length === 0
       ? "fail"
-      : quantified / bullets.length >= 0.4
+      : quantified / bullets.length >= 0.5
         ? "pass"
-        : quantified > 0
+        : quantified / bullets.length >= 0.25
           ? "warn"
           : "fail",
     bullets.length === 0
       ? "Add bullets before adding metrics."
-      : `${quantified} of ${bullets.length} bullets include a number, percentage, or scale.`,
-    8,
+      : `${quantified} of ${bullets.length} bullets include a number, percentage, or scale. Aim for at least half: say how much, how many, or how fast.`,
+    10,
     "content",
+    sample(unquantified),
   );
 
   add(
@@ -211,16 +229,17 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "Action verbs",
     bullets.length === 0
       ? "fail"
-      : actionBullets / bullets.length >= 0.5
+      : actionBullets / bullets.length >= 0.7
         ? "pass"
-        : actionBullets > 0
+        : actionBullets / bullets.length >= 0.4
           ? "warn"
           : "fail",
     bullets.length === 0
       ? "Add bullets that start with a verb."
-      : `${actionBullets} of ${bullets.length} bullets start with an action verb.`,
+      : `${actionBullets} of ${bullets.length} bullets start with a strong action verb (for example built, led, reduced).`,
     6,
     "content",
+    sample(withoutVerb),
   );
 
   add(
@@ -270,17 +289,21 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "format",
   );
 
+  const years = experienceYears(data);
+  const maxWords = years >= 10 ? 1000 : 750;
   add(
     "length",
     "Resume length",
-    words.length >= 150 && words.length <= 900
+    words.length >= 200 && words.length <= maxWords
       ? "pass"
-      : words.length >= 80 && words.length <= 1200
+      : words.length >= 100 && words.length <= maxWords * 1.3
         ? "warn"
         : "fail",
-    words.length >= 150 && words.length <= 900
-      ? `About ${words.length} words — a healthy one page of content.`
-      : `About ${words.length} words. Aim for roughly 250–800 words.`,
+    words.length >= 200 && words.length <= maxWords
+      ? `About ${words.length} words, a healthy length for your experience.`
+      : words.length > maxWords
+        ? `About ${words.length} words is too long${years < 10 ? " for under ten years of experience. Recruiters expect one page, two at most" : ""}. Cut older or weaker detail.`
+        : `About ${words.length} words is thin. Add detail on what you achieved.`,
     4,
     "format",
   );
@@ -298,6 +321,8 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "format",
   );
 
+  checks.push(...qualityChecks(data));
+
   const totalWeight = checks.reduce((sum, check) => sum + check.weight, 0);
   const earned = checks.reduce(
     (sum, check) =>
@@ -305,8 +330,35 @@ export function analyzeResume(data: ResumeData): AtsReport {
     0,
   );
 
+  const rawScore = clampScore(earned, totalWeight);
+  const statusOf = (id: string) => checks.find((check) => check.id === id)?.status;
+  const caps: Array<[number, string]> = [];
+  if (statusOf("name") === "fail" || statusOf("email") === "fail") {
+    caps.push([40, "Recruiters cannot contact you without a name and email."]);
+  }
+  if (statusOf("experience") === "fail" && completeProjects.length === 0) {
+    caps.push([55, "There is no work experience or project evidence yet."]);
+  }
+  if (bullets.length < 3) {
+    caps.push([60, "Fewer than three achievement bullets gives a recruiter little to judge."]);
+  }
+  if (bullets.length > 0 && statusOf("numbers") === "fail") {
+    caps.push([65, "Almost none of your bullets show measurable results."]);
+  }
+  if (statusOf("weak-phrases") === "fail") {
+    caps.push([70, "Most bullets use vague wording instead of stating results."]);
+  }
+  if (statusOf("dates") === "fail") {
+    caps.push([75, "Impossible dates undermine an otherwise good resume."]);
+  }
+  const ceiling = caps.length ? Math.min(...caps.map(([max]) => max)) : 100;
+  const score = Math.min(rawScore, ceiling);
+
   return {
-    score: clampScore(earned, totalWeight),
+    score,
+    rawScore,
+    caps: score < rawScore ? caps.filter(([max]) => max === ceiling).map(([, why]) => why) : [],
+    verdict: verdictFor(score),
     checks,
     passed: checks.filter((check) => check.status === "pass").length,
     warnings: checks.filter((check) => check.status === "warn").length,

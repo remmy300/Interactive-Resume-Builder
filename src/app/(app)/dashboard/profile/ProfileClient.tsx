@@ -219,7 +219,7 @@ export function ProfileClient() {
                       onChange={(event) =>
                         void toggleShare(item.id, event.target.checked)
                       }
-                      inputProps={{ "aria-label": `Public link for ${item.title}` }}
+                      slotProps={{ input: { "aria-label": `Public link for ${item.title}` } }}
                     />
                     {item.isPublic && item.publicSlug && (
                       <>

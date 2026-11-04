@@ -171,7 +171,7 @@ export function InterviewClient() {
             label="Company (optional)"
             value={company}
             onChange={(event) => setCompany(event.target.value)}
-            inputProps={{ maxLength: 120 }}
+            slotProps={{ htmlInput: { maxLength: 120 } }}
             helperText="Adds company-specific questions."
           />
         </div>
@@ -224,7 +224,7 @@ export function InterviewClient() {
               value={customQuestion}
               onChange={(event) => setCustomQuestion(event.target.value)}
               fullWidth
-              inputProps={{ maxLength: 500 }}
+              slotProps={{ htmlInput: { maxLength: 500 } }}
             />
             <TextField
               select
@@ -313,7 +313,7 @@ export function InterviewClient() {
                 minRows={4}
                 fullWidth
                 sx={{ mt: 2 }}
-                inputProps={{ maxLength: 10000 }}
+                slotProps={{ htmlInput: { maxLength: 10000 } }}
                 helperText={`${(answers[note.id] ?? "").trim().split(/\s+/).filter(Boolean).length} words`}
               />
               <div className="mt-2 flex justify-end">

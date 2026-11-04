@@ -34,6 +34,18 @@ const theme = createTheme({
     MuiTextField: {
       defaultProps: { size: "small" },
     },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-notchedOutline": { borderColor: "#cbd5e1" },
+          "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#94a3b8" },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            borderColor: "#0f172a",
+            borderWidth: 1,
+          },
+        },
+      },
+    },
     MuiAccordion: {
       defaultProps: { disableGutters: true, elevation: 0 },
       styleOverrides: {

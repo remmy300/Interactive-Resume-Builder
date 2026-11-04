@@ -63,14 +63,16 @@ function scoreTone(
   score: number,
   failed = 0,
 ): { bar: string; text: string; label: string } {
-  if (score >= 80 && failed === 0) {
+  if (score >= 85 && failed === 0) {
     return { bar: "#15803d", text: "text-emerald-700", label: "Ready to apply" };
   }
-  if (score >= 55) {
+  if (score >= 65) {
     return { bar: "#b45309", text: "text-amber-700", label: "Almost ready" };
   }
   return { bar: "#b91c1c", text: "text-red-700", label: "Needs work" };
 }
+
+import { CheckExamples, ScoreCaps, SCORE_NOTE } from "@/components/dashboard/CheckExamples";
 
 function CheckRow({ check }: { check: AtsCheck }) {
   const meta = STATUS[check.status];
@@ -87,6 +89,7 @@ function CheckRow({ check }: { check: AtsCheck }) {
           </span>
         </div>
         <p className="mt-0.5 text-sm text-slate-600">{check.detail}</p>
+        <CheckExamples examples={check.examples} />
       </div>
     </li>
   );
@@ -188,6 +191,9 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
                 {report.passed} checks pass · {report.warnings} to polish ·{" "}
                 {report.failed} must fix
               </p>
+              <p className="mt-1 text-sm text-slate-700">{report.verdict}</p>
+              <ScoreCaps report={report} />
+              <p className="mt-2 text-[11px] text-slate-500">{SCORE_NOTE}</p>
             </section>
 
             {GROUPS.map((group) => {
@@ -239,7 +245,7 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
                 minRows={7}
                 fullWidth
                 helperText="Nothing is uploaded. Matching happens in your browser."
-                inputProps={{ maxLength: 12000 }}
+                slotProps={{ htmlInput: { maxLength: 12000 } }}
               />
             </section>
 

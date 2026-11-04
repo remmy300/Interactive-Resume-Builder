@@ -10,7 +10,7 @@ export function ProjectsSection({ data, dispatch }: SectionProps) {
   const list = data.projects;
 
   return (
-    <SectionCard title="Projects" count={list.length} hint="Show what you have shipped">
+    <SectionCard id="projects" title="Projects" count={list.length} hint="Show what you have shipped">
       <div className="space-y-3">
         {list.length === 0 && <EmptyList text="No projects yet. Add one you are proud of." />}
         {list.map((entry, index) => (
@@ -47,7 +47,7 @@ export function ProjectsSection({ data, dispatch }: SectionProps) {
                     patch: { title: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
               <TextField
                 label="Project URL"
@@ -62,7 +62,7 @@ export function ProjectsSection({ data, dispatch }: SectionProps) {
                     patch: { link: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 500 }}
+                slotProps={{ htmlInput: { maxLength: 500 } }}
               />
             </div>
             <BulletEditor
@@ -95,7 +95,7 @@ export function CertificationsSection({ data, dispatch }: SectionProps) {
   const list = data.certifications;
 
   return (
-    <SectionCard title="Certifications" count={list.length} hint="Optional credentials and awards">
+    <SectionCard id="certifications" title="Certifications" count={list.length} hint="Optional credentials and awards">
       <div className="space-y-3">
         {list.length === 0 && <EmptyList text="No certifications yet." />}
         {list.map((entry, index) => (
@@ -142,7 +142,7 @@ export function CertificationsSection({ data, dispatch }: SectionProps) {
                     patch: { name: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
               <TextField
                 label="Issuer"
@@ -155,7 +155,7 @@ export function CertificationsSection({ data, dispatch }: SectionProps) {
                     patch: { issuer: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
               <MonthField
                 label="Issued"
@@ -182,7 +182,7 @@ export function CertificationsSection({ data, dispatch }: SectionProps) {
                     patch: { link: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 500 }}
+                slotProps={{ htmlInput: { maxLength: 500 } }}
               />
             </div>
           </div>

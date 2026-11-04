@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
+import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
@@ -18,7 +19,10 @@ import {
   type CoverLetterTone,
 } from "@/lib/career";
 import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
+import { insertLink, toHtml, toPlainText } from "@/lib/letter-links";
 import ConfirmDialog from "@/components/builder/ConfirmDialog";
+import LetterLinkDialog from "@/components/dashboard/LetterLinkDialog";
+import LetterPreview from "@/components/dashboard/LetterPreview";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 import { useResumeLibrary } from "@/hooks/useResumeLibrary";
@@ -54,6 +58,9 @@ export function CoverLettersClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: "success" | "error" | "info"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const letterRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectionRef = useRef({ start: 0, end: 0 });
+  const [linkDialog, setLinkDialog] = useState({ open: false, title: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +141,49 @@ export function CoverLettersClient() {
       severity: "success",
       message: "Draft generated. Review and edit it before saving.",
     });
+  };
+
+  const openLinkDialog = () => {
+    const field = letterRef.current;
+    const start = field?.selectionStart ?? form.content.length;
+    const end = field?.selectionEnd ?? start;
+    selectionRef.current = { start, end };
+    setLinkDialog({ open: true, title: form.content.slice(start, end).trim() });
+  };
+
+  const addLink = (title: string, href: string) => {
+    const { start, end } = selectionRef.current;
+    const next = insertLink(form.content, start, end, title, href);
+    update({ content: next.content });
+    setLinkDialog({ open: false, title: "" });
+    requestAnimationFrame(() => {
+      letterRef.current?.focus();
+      letterRef.current?.setSelectionRange(next.cursor, next.cursor);
+    });
+  };
+
+  const copyLetter = async () => {
+    try {
+      if (typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([toHtml(form.content)], { type: "text/html" }),
+            "text/plain": new Blob([toPlainText(form.content)], { type: "text/plain" }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(toPlainText(form.content));
+      }
+      setNotice({
+        severity: "success",
+        message: "Letter copied. Links keep their titles when pasted into an email.",
+      });
+    } catch {
+      setNotice({
+        severity: "error",
+        message: "Could not copy. Select the text and copy it manually.",
+      });
+    }
   };
 
   const save = async () => {
@@ -264,25 +314,25 @@ export function CoverLettersClient() {
                 label="Title"
                 value={form.title}
                 onChange={(event) => update({ title: event.target.value })}
-                inputProps={{ maxLength: 120 }}
+                slotProps={{ htmlInput: { maxLength: 120 } }}
               />
               <TextField
                 label="Company"
                 value={form.company}
                 onChange={(event) => update({ company: event.target.value })}
-                inputProps={{ maxLength: 120 }}
+                slotProps={{ htmlInput: { maxLength: 120 } }}
               />
               <TextField
                 label="Role"
                 value={form.role}
                 onChange={(event) => update({ role: event.target.value })}
-                inputProps={{ maxLength: 120 }}
+                slotProps={{ htmlInput: { maxLength: 120 } }}
               />
               <TextField
                 label="Hiring manager (optional)"
                 value={form.manager}
                 onChange={(event) => update({ manager: event.target.value })}
-                inputProps={{ maxLength: 120 }}
+                slotProps={{ htmlInput: { maxLength: 120 } }}
               />
             </div>
 
@@ -320,7 +370,7 @@ export function CoverLettersClient() {
               minRows={3}
               fullWidth
               sx={{ mt: 3 }}
-              inputProps={{ maxLength: 12000 }}
+              slotProps={{ htmlInput: { maxLength: 12000 } }}
             />
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -359,15 +409,51 @@ export function CoverLettersClient() {
               fullWidth
               placeholder="Write or generate your cover letter here…"
               helperText={`${form.content.trim().split(/\s+/).filter(Boolean).length} words`}
-              inputProps={{ maxLength: 20000 }}
+              inputRef={letterRef}
+              slotProps={{ htmlInput: { maxLength: 20000 } }}
             />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<InsertLinkIcon />}
+                onClick={openLinkDialog}
+              >
+                Add link
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => void copyLetter()}
+                disabled={!form.content.trim()}
+              >
+                Copy letter
+              </Button>
+            </div>
             <p className="mt-2 text-xs text-slate-500">
               Review every generated sentence. Remove anything you cannot support with a
-              real example.
+              real example. Links are written as [Title](address) and shown by title in
+              the preview.
             </p>
+            {form.content.trim() && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  How it will read
+                </p>
+                <LetterPreview content={form.content} />
+              </div>
+            )}
           </div>
         </section>
       </div>
+
+      {linkDialog.open && (
+        <LetterLinkDialog
+          initialTitle={linkDialog.title}
+          onCancel={() => setLinkDialog({ open: false, title: "" })}
+          onInsert={addLink}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmDelete}

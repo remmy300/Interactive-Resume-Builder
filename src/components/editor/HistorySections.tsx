@@ -10,7 +10,7 @@ export function EducationSection({ data, dispatch }: SectionProps) {
   const list = data.education;
 
   return (
-    <SectionCard title="Education" count={list.length}>
+    <SectionCard id="education" title="Education" count={list.length}>
       <div className="space-y-3">
         {list.length === 0 && <EmptyList text="No education yet. Add a degree or course." />}
         {list.map((entry, index) => (
@@ -47,7 +47,7 @@ export function EducationSection({ data, dispatch }: SectionProps) {
                     patch: { college: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
               <TextField
                 label="Degree"
@@ -60,7 +60,7 @@ export function EducationSection({ data, dispatch }: SectionProps) {
                     patch: { degree: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
             </div>
             <DateRangeFields
@@ -110,7 +110,7 @@ export function ExperienceSection({ data, dispatch }: SectionProps) {
   const list = data.experience;
 
   return (
-    <SectionCard title="Experience" count={list.length} hint="Most recent role first">
+    <SectionCard id="experience" title="Experience" count={list.length} hint="Most recent role first">
       <div className="space-y-3">
         {list.length === 0 && <EmptyList text="No experience yet. Add a role or internship." />}
         {list.map((entry, index) => (
@@ -147,7 +147,7 @@ export function ExperienceSection({ data, dispatch }: SectionProps) {
                     patch: { company: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
               <TextField
                 label="Role"
@@ -160,7 +160,7 @@ export function ExperienceSection({ data, dispatch }: SectionProps) {
                     patch: { role: event.target.value },
                   })
                 }
-                inputProps={{ maxLength: 200 }}
+                slotProps={{ htmlInput: { maxLength: 200 } }}
               />
             </div>
             <DateRangeFields

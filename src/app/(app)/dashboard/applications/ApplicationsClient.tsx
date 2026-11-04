@@ -365,7 +365,7 @@ export function ApplicationsClient() {
               onChange={(event) =>
                 setForm((current) => ({ ...current, company: event.target.value }))
               }
-              inputProps={{ maxLength: 160 }}
+              slotProps={{ htmlInput: { maxLength: 160 } }}
               required
             />
             <TextField
@@ -374,7 +374,7 @@ export function ApplicationsClient() {
               onChange={(event) =>
                 setForm((current) => ({ ...current, role: event.target.value }))
               }
-              inputProps={{ maxLength: 160 }}
+              slotProps={{ htmlInput: { maxLength: 160 } }}
               required
             />
             <TextField
@@ -409,7 +409,7 @@ export function ApplicationsClient() {
               onChange={(event) =>
                 setForm((current) => ({ ...current, url: event.target.value }))
               }
-              inputProps={{ maxLength: 500 }}
+              slotProps={{ htmlInput: { maxLength: 500 } }}
               className="sm:col-span-2"
             />
             <TextField
@@ -420,7 +420,7 @@ export function ApplicationsClient() {
               }
               multiline
               minRows={3}
-              inputProps={{ maxLength: 5000 }}
+              slotProps={{ htmlInput: { maxLength: 5000 } }}
               className="sm:col-span-2"
             />
           </div>

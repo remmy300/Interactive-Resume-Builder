@@ -20,6 +20,7 @@ interface ConfirmDialogProps {
   secondaryAction?: {
     label: string;
     onClick: () => void;
+    disabled?: boolean;
   };
 }
 
@@ -51,7 +52,10 @@ export function ConfirmDialog({
           Cancel
         </Button>
         {secondaryAction && (
-          <Button onClick={secondaryAction.onClick} disabled={busy}>
+          <Button
+            onClick={secondaryAction.onClick}
+            disabled={busy || secondaryAction.disabled}
+          >
             {secondaryAction.label}
           </Button>
         )}

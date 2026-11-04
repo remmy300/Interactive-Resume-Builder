@@ -7,6 +7,7 @@ import {
   suggestSkillsField,
   type JobKeyword,
 } from "./ats";
+import { formatLink, normalizeLinkUrl } from "./letter-links";
 import type { ResumeData, Skills } from "./resume-schema";
 
 /* -------------------------------------------------------------------------- */
@@ -170,13 +171,16 @@ export function generateCoverLetter({
       ? "Thank you for your consideration. I look forward to hearing from you."
       : "Thank you for your time and consideration. I would welcome the chance to discuss how I can contribute to your team.";
 
+  const titledLink = (title: string, value: string) => {
+    const href = normalizeLinkUrl(value);
+    return href ? formatLink(title, href) : "";
+  };
   const contact = [
-    resume.personal.email,
-    resume.personal.phone,
-    resume.personal.linkedIn,
-    resume.personal.portfolio,
+    resume.personal.email.trim(),
+    resume.personal.phone.trim(),
+    titledLink("LinkedIn", resume.personal.linkedIn),
+    titledLink("Portfolio", resume.personal.portfolio),
   ]
-    .map((item) => item.trim())
     .filter(Boolean)
     .join(" · ");
 

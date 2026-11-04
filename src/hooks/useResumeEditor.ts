@@ -62,7 +62,8 @@ export function useResumeEditor() {
 
   const [savedKey, setSavedKey] = useState(() => serialize(DEFAULT_TITLE, data));
 
-  const savingRef = useRef(false);
+  const savingRef = useRef<Promise<boolean> | null>(null);
+  const savedKeyRef = useRef(savedKey);
   const failedKeyRef = useRef<string | null>(null);
   const didLoadRef = useRef(false);
   const currentKey = useMemo(() => serialize(title, data), [title, data]);
@@ -79,7 +80,9 @@ export function useResumeEditor() {
     setTitle(record.title);
     setUpdatedAt(record.updatedAt);
     dispatch({ type: "replace", data: normalized });
-    setSavedKey(serialize(record.title, normalized));
+    const key = serialize(record.title, normalized);
+    setSavedKey(key);
+    savedKeyRef.current = key;
     setSaveState("idle");
     setError(null);
   }, []);
@@ -134,7 +137,9 @@ export function useResumeEditor() {
     setTitle(DEFAULT_TITLE);
     setUpdatedAt(null);
     dispatch({ type: "replace", data: empty });
-    setSavedKey(serialize(DEFAULT_TITLE, empty));
+    const key = serialize(DEFAULT_TITLE, empty);
+    setSavedKey(key);
+    savedKeyRef.current = key;
     setSaveState("idle");
     setError(null);
   }, []);
@@ -148,8 +153,23 @@ export function useResumeEditor() {
     setError(null);
   }, []);
 
+  const saveRef = useRef<(options?: { silent?: boolean }) => Promise<boolean>>(
+    async () => false,
+  );
+
   const save = useCallback(
     async (options: { silent?: boolean } = {}): Promise<boolean> => {
+      // A save is already running (often an autosave). Wait for it, then save
+      // whatever is still unsaved, instead of silently doing nothing.
+      if (savingRef.current) {
+        await savingRef.current;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return saveRef.current(options);
+      }
+
+      // Nothing changed since the last save, so there is nothing to send.
+      if (currentKeyRef.current === savedKeyRef.current) return true;
+
       const trimmedTitle = title.trim();
       if (!trimmedTitle) {
         setError("Give your resume a title before saving.");
@@ -160,68 +180,74 @@ export function useResumeEditor() {
         setError(`Add ${validity.missing.join(", ")} before saving.`);
         return false;
       }
-      if (savingRef.current) return false;
 
-      savingRef.current = true;
-      setIsSaving(true);
-      if (!options.silent) setSaveState("saving");
+      // What this request contains. After a successful save the editor is "clean"
+      // relative to this snapshot, not to the server's echo of it, so a harmless
+      // formatting difference can never leave Save enabled or trigger a save loop.
+      const sentKey = serialize(title, data);
 
-      try {
-        const requestBody = resumeId
-          ? { title: trimmedTitle, data, updatedAt: updatedAt ?? undefined }
-          : { title: trimmedTitle, data };
+      const run = async (): Promise<boolean> => {
+        setIsSaving(true);
+        if (!options.silent) setSaveState("saving");
 
-        const record = resumeId
-          ? await apiFetch<ResumeRecord>(`/api/resumes/${resumeId}`, {
-              method: "PATCH",
-              headers: JSON_HEADERS,
-              body: JSON.stringify(requestBody),
-            })
-          : await apiFetch<ResumeRecord>("/api/resumes", {
-              method: "POST",
-              headers: JSON_HEADERS,
-              body: JSON.stringify(requestBody),
-            });
+        try {
+          const requestBody = resumeId
+            ? { title: trimmedTitle, data, updatedAt: updatedAt ?? undefined }
+            : { title: trimmedTitle, data };
 
-        const normalized = normalizeResumeData(record.data);
-        setResumeId(record.id);
-        setTitle((current) => (current === trimmedTitle ? record.title : current));
-        setUpdatedAt(record.updatedAt);
-        setSavedKey(serialize(record.title, normalized));
-        setItems((previous) => [
-          {
-            id: record.id,
-            title: record.title,
-            isPublic: record.isPublic,
-            publicSlug: record.publicSlug,
-            createdAt: record.createdAt,
-            updatedAt: record.updatedAt,
-          },
-          ...previous.filter((item) => item.id !== record.id),
-        ]);
-        setSaveState("saved");
-        setError(null);
-        failedKeyRef.current = null;
-        return true;
-      } catch (saveError) {
-        setSaveState("error");
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Could not save your resume.",
-        );
-        // Remember the failing revision so the autosave effect does not loop.
-        failedKeyRef.current = currentKeyRef.current;
-        return false;
-      } finally {
-        savingRef.current = false;
-        setIsSaving(false);
-      }
+          const record = resumeId
+            ? await apiFetch<ResumeRecord>(`/api/resumes/${resumeId}`, {
+                method: "PATCH",
+                headers: JSON_HEADERS,
+                body: JSON.stringify(requestBody),
+              })
+            : await apiFetch<ResumeRecord>("/api/resumes", {
+                method: "POST",
+                headers: JSON_HEADERS,
+                body: JSON.stringify(requestBody),
+              });
+
+          setResumeId(record.id);
+          setTitle((current) => (current === trimmedTitle ? record.title : current));
+          setUpdatedAt(record.updatedAt);
+          setSavedKey(sentKey);
+          savedKeyRef.current = sentKey;
+          setItems((previous) => [
+            {
+              id: record.id,
+              title: record.title,
+              isPublic: record.isPublic,
+              publicSlug: record.publicSlug,
+              createdAt: record.createdAt,
+              updatedAt: record.updatedAt,
+            },
+            ...previous.filter((item) => item.id !== record.id),
+          ]);
+          setSaveState("saved");
+          setError(null);
+          failedKeyRef.current = null;
+          return true;
+        } catch (saveError) {
+          setSaveState("error");
+          setError(
+            saveError instanceof Error
+              ? saveError.message
+              : "Could not save your resume.",
+          );
+          // Remember the failing revision so the autosave effect does not loop.
+          failedKeyRef.current = currentKeyRef.current;
+          return false;
+        } finally {
+          savingRef.current = null;
+          setIsSaving(false);
+        }
+      };
+
+      savingRef.current = run();
+      return savingRef.current;
     },
     [data, resumeId, title, updatedAt],
   );
-
-  const saveRef = useRef(save);
 
   useEffect(() => {
     saveRef.current = save;
