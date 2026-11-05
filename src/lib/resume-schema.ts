@@ -71,6 +71,7 @@ export const projectSchema = z.object({
   title: z.string().max(200),
   description: z.string().max(5000),
   link: z.string().max(500),
+  github: z.string().max(500).default(""),
 });
 
 export const certificationSchema = z.object({
@@ -171,6 +172,7 @@ export function createEmptyResume(): ResumeData {
         title: "",
         description: "",
         link: "",
+        github: "",
       },
     ],
     certifications: [],
@@ -227,6 +229,7 @@ function normalizeProject(value: unknown): ProjectEntry {
     title: asString(entry.title),
     description: asString(entry.description),
     link: asString(entry.link),
+    github: asString(entry.github),
   };
 }
 

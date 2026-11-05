@@ -31,7 +31,11 @@ interface ImportCvDialogProps {
   open: boolean;
   onClose: () => void;
   /** Called once the CV is read; the editor is filled in straight away. */
-  onImported: (data: ResumeData, title: string, warnings: string[]) => void;
+  onImported: (
+    data: ResumeData,
+    title: string,
+    warnings: string[],
+  ) => void | Promise<void>;
   /** Closes the dialog and jumps to a section of the editor. */
   onGoToSection: (section: EditorSectionId) => void;
 }
@@ -161,7 +165,8 @@ export function ImportCvDialog({
       const title = payload.data.personal.name
         ? `${payload.data.personal.name} — CV`
         : `${baseName} — Imported`;
-      onImported(payload.data, title, payload.warnings);
+      // Saving the new resume happens here, so wait for it before closing.
+      await onImported(payload.data, title, payload.warnings);
       await wait(CLOSE_DELAY_MS);
       if (!mountedRef.current) return;
       // Extraction is done and the editor is filled: hand the screen back.

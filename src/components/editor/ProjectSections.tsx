@@ -50,7 +50,7 @@ export function ProjectsSection({ data, dispatch }: SectionProps) {
                 slotProps={{ htmlInput: { maxLength: 200 } }}
               />
               <TextField
-                label="Project URL"
+                label="Live demo URL"
                 type="url"
                 placeholder="https://…"
                 value={entry.link}
@@ -60,6 +60,21 @@ export function ProjectsSection({ data, dispatch }: SectionProps) {
                     section: "projects",
                     id: entry.id,
                     patch: { link: event.target.value },
+                  })
+                }
+                slotProps={{ htmlInput: { maxLength: 500 } }}
+              />
+              <TextField
+                label="GitHub URL"
+                type="url"
+                placeholder="https://github.com/you/project"
+                value={entry.github}
+                onChange={(event) =>
+                  dispatch({
+                    type: "entry-update",
+                    section: "projects",
+                    id: entry.id,
+                    patch: { github: event.target.value },
                   })
                 }
                 slotProps={{ htmlInput: { maxLength: 500 } }}

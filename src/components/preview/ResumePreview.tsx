@@ -37,7 +37,11 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
       entry.current,
   );
   const projects = data.projects.filter(
-    (entry) => hasText(entry.title) || hasText(entry.description) || hasText(entry.link),
+    (entry) =>
+      hasText(entry.title) ||
+      hasText(entry.description) ||
+      hasText(entry.link) ||
+      hasText(entry.github),
   );
   const certifications = data.certifications.filter(
     (entry) =>

@@ -22,6 +22,8 @@ import { checkResumeValidity } from "@/lib/resume-validity";
 import { safeFileName } from "@/utils/Form";
 
 interface BuilderProps {
+  /** Resume to open first (from the My resumes page); "new" starts a blank one. */
+  initialResumeId?: string | null;
   user: {
     email: string;
     name?: string | null;
@@ -38,15 +40,14 @@ interface Notice {
   severity: "success" | "info" | "warning";
 }
 
-export default function Builder({ user }: BuilderProps) {
-  const editor = useResumeEditor();
+export default function Builder({ user, initialResumeId }: BuilderProps) {
+  const editor = useResumeEditor(initialResumeId);
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [atsOpen, setAtsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(
-    null,
-  );
+  const [pendingNavigation, setPendingNavigation] =
+    useState<PendingNavigation | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
     title: string;
@@ -102,8 +103,6 @@ export default function Builder({ user }: BuilderProps) {
     }
   };
 
-  // Importing replaces the draft, so unsaved edits get the same safeguard as
-  // switching resumes.
   const requestImport = () => {
     if (isDirty) {
       setPendingNavigation({ kind: "import" });
@@ -115,7 +114,7 @@ export default function Builder({ user }: BuilderProps) {
   const goToSection = (section: EditorSectionId) => {
     setImportOpen(false);
     setMobileView("edit");
-    // Let the dialog close first so the scroll is not fought by its lock.
+
     window.setTimeout(() => openEditorSection(section), 200);
   };
 
@@ -198,7 +197,10 @@ export default function Builder({ user }: BuilderProps) {
     const url = `${window.location.origin}/r/${slug}`;
     try {
       await navigator.clipboard.writeText(url);
-      setNotice({ message: "Share link copied to clipboard.", severity: "success" });
+      setNotice({
+        message: "Share link copied to clipboard.",
+        severity: "success",
+      });
     } catch {
       setNotice({
         message: `Could not copy automatically. The link is ${url}`,
@@ -269,7 +271,9 @@ export default function Builder({ user }: BuilderProps) {
         <div className="border-b border-slate-200 bg-white lg:hidden">
           <Tabs
             value={mobileView}
-            onChange={(_event, value: "edit" | "preview") => setMobileView(value)}
+            onChange={(_event, value: "edit" | "preview") =>
+              setMobileView(value)
+            }
             variant="fullWidth"
             aria-label="Editor and preview"
           >
@@ -286,7 +290,10 @@ export default function Builder({ user }: BuilderProps) {
             onNewResume={requestNewResume}
             onDeleteResume={() => {
               if (!currentItem) return;
-              setPendingDelete({ id: currentItem.id, title: currentItem.title });
+              setPendingDelete({
+                id: currentItem.id,
+                title: currentItem.title,
+              });
             }}
             onSave={() => void editor.save()}
             onImport={requestImport}
@@ -321,15 +328,20 @@ export default function Builder({ user }: BuilderProps) {
             open={importOpen}
             onClose={() => setImportOpen(false)}
             onGoToSection={goToSection}
-            onImported={(imported, importedTitle, warnings) => {
-              editor.importResume(imported, importedTitle);
-              setNotice({
-                message:
-                  warnings.length > 0
-                    ? `CV imported. ${warnings.join(" ")} Review each section, then save.`
-                    : "CV imported into a new draft. Review the sections, then save it as a new resume.",
-                severity: warnings.length > 0 ? "warning" : "success",
-              });
+            onImported={async (imported, importedTitle, warnings) => {
+              const result = await editor.importResume(imported, importedTitle);
+              const extra = warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
+              setNotice(
+                result.saved
+                  ? {
+                      message: `CV imported and saved as a new resume. Your other resumes are unchanged; find them all under My resumes.${extra}`,
+                      severity: warnings.length > 0 ? "warning" : "success",
+                    }
+                  : {
+                      message: `CV imported as a draft, not saved yet. ${result.reason ?? ""}${extra}`,
+                      severity: "warning",
+                    },
+              );
             }}
           />
         )}
@@ -360,7 +372,8 @@ export default function Builder({ user }: BuilderProps) {
           description={
             <>
               <strong>{pendingDelete?.title}</strong> will be removed from your
-              account. You can undo this from the notification for a few seconds.
+              account. You can undo this from the notification for a few
+              seconds.
             </>
           }
           confirmLabel="Delete"
@@ -399,7 +412,11 @@ export default function Builder({ user }: BuilderProps) {
             }}
             action={
               undoId ? (
-                <Button color="inherit" size="small" onClick={() => void handleUndo()}>
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => void handleUndo()}
+                >
                   Undo
                 </Button>
               ) : undefined

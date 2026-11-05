@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { normalizeResumeData } from "@/lib/resume-schema";
+import { createEmptyResume, normalizeResumeData } from "@/lib/resume-schema";
 import { useResumeEditor } from "./useResumeEditor";
 
 /** Minimal in-memory stand-in for the resumes API, including jsonb key reordering. */
@@ -114,5 +114,55 @@ describe("useResumeEditor saving", () => {
     });
     expect(await second!).toBe(true);
     expect(result.current.isSaving).toBe(false);
+  });
+});
+
+describe("useResumeEditor import", () => {
+  beforeEach(() => {
+    const server = fakeServer();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => server.handler(url, init)),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const validCv = () => {
+    const data = createEmptyResume();
+    data.personal.name = "Ada Lovelace";
+    data.personal.email = "ada@example.com";
+    data.skills.technologies = "React";
+    return data;
+  };
+
+  it("saves an imported CV as a new resume and lists it", async () => {
+    const { result } = renderHook(() => useResumeEditor());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let outcome: { saved: boolean; reason?: string } = { saved: false };
+    await act(async () => {
+      outcome = await result.current.importResume(validCv(), "Ada — CV");
+    });
+
+    expect(outcome.saved).toBe(true);
+    expect(result.current.resumeId).toBe("r1");
+    expect(result.current.items.map((item) => item.title)).toEqual(["Ada — CV"]);
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.isSaving).toBe(false);
+  });
+
+  it("keeps an incomplete import as a draft and says why", async () => {
+    const { result } = renderHook(() => useResumeEditor());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let outcome: { saved: boolean; reason?: string } = { saved: true };
+    await act(async () => {
+      outcome = await result.current.importResume(createEmptyResume(), "Blank");
+    });
+
+    expect(outcome.saved).toBe(false);
+    expect(outcome.reason).toMatch(/before it can be saved/);
+    expect(result.current.resumeId).toBeNull();
+    expect(result.current.items).toHaveLength(0);
   });
 });

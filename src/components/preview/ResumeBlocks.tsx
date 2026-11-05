@@ -144,15 +144,30 @@ export function ProjectList({
                 <span className="cv-placeholder">Project name</span>
               )}
             </h3>
-            {hasText(entry.link) && (
-              <a
-                className="cv-entry__meta cv-link"
-                href={normalizeLink("url", entry.link)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View project
-              </a>
+            {(hasText(entry.link) || hasText(entry.github)) && (
+              <span className="cv-entry__meta">
+                {hasText(entry.link) && (
+                  <a
+                    className="cv-link"
+                    href={normalizeLink("url", entry.link)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Live demo
+                  </a>
+                )}
+                {hasText(entry.link) && hasText(entry.github) && " · "}
+                {hasText(entry.github) && (
+                  <a
+                    className="cv-link"
+                    href={normalizeLink("url", entry.github)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    GitHub
+                  </a>
+                )}
+              </span>
             )}
           </div>
           {hasText(entry.description) ? (

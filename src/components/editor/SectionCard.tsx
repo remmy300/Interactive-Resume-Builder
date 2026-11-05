@@ -6,7 +6,10 @@ import AccordionDetails from "@mui/material/AccordionDetails";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import Badge from "@mui/material/Badge";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { OPEN_SECTION_EVENT, type EditorSectionId } from "@/lib/editor-sections";
+import {
+  OPEN_SECTION_EVENT,
+  type EditorSectionId,
+} from "@/lib/editor-sections";
 
 interface SectionCardProps {
   id: EditorSectionId;
@@ -32,7 +35,7 @@ export function SectionCard({
     const handleOpen = (event: Event) => {
       if ((event as CustomEvent<string>).detail !== id) return;
       setExpanded(true);
-      // Wait for the panel to expand so the scroll lands on the final position.
+
       window.setTimeout(() => {
         document
           .getElementById(domId)
@@ -63,12 +66,16 @@ export function SectionCard({
             <Badge
               badgeContent={count}
               color="primary"
-              sx={{ "& .MuiBadge-badge": { position: "static", transform: "none" } }}
+              sx={{
+                "& .MuiBadge-badge": { position: "static", transform: "none" },
+              }}
             />
           )}
         </div>
       </AccordionSummary>
-      <AccordionDetails sx={{ px: 2, pt: 0, pb: 2 }}>{children}</AccordionDetails>
+      <AccordionDetails sx={{ px: 2, pt: 0, pb: 2 }}>
+        {children}
+      </AccordionDetails>
     </Accordion>
   );
 }

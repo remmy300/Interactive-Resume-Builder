@@ -36,7 +36,7 @@ export function resumeText(data: ResumeData): string {
     );
   }
   for (const entry of data.projects) {
-    parts.push(entry.title, entry.link, entry.description);
+    parts.push(entry.title, entry.link, entry.github, entry.description);
   }
   for (const entry of data.education) {
     parts.push(entry.college, entry.degree, entry.startDate, entry.endDate);

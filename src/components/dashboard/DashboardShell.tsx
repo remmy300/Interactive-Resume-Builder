@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import DescriptionIcon from "@mui/icons-material/Description";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
@@ -25,6 +26,7 @@ interface DashboardShellProps {
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: SpaceDashboardIcon },
   { href: "/dashboard/resume", label: "Resume builder", icon: DescriptionIcon },
+  { href: "/dashboard/resumes", label: "My resumes", icon: FolderOpenIcon },
   { href: "/dashboard/job-match", label: "Job match", icon: TravelExploreIcon },
   { href: "/dashboard/cv-check", label: "CV check", icon: FactCheckIcon },
   { href: "/dashboard/cover-letters", label: "Cover letters", icon: MailOutlineIcon },

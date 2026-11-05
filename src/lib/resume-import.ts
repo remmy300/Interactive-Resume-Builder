@@ -1,5 +1,6 @@
 import { suggestSkillsField } from "./ats";
 import { ACTION_VERBS } from "./ats-data";
+import { classifyProjectLinks, type LinkRef } from "./import-links";
 import {
   createEmptyResume,
   createId,
@@ -236,7 +237,9 @@ function isContinuation(prev: string, next: string): boolean {
  * Blank lines stay as barriers.
  */
 function mergeWrappedLines(rawLines: string[]): string[] {
-  const lines = rawLines.filter((line) => !LINK_LABEL_LINE.test(line));
+  // A caption such as "Live Demo | Github" ends a project. Turn it into a blank
+  // line so the next title cannot be glued onto a last bullet that has no full stop.
+  const lines = rawLines.map((line) => (LINK_LABEL_LINE.test(line) ? "" : line));
   const bulleted = lines.some((line) => BULLET_START.test(line));
   const merged: string[] = [];
   let inBullet = false;
@@ -437,13 +440,18 @@ function stripTrailingDetail(text: string): string {
   return text.replace(/\s*(?:[|·•–—]|\s-\s).*$/, "").trim();
 }
 
-function parseProjectBlock(block: string[]): ProjectEntry | null {
+function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry | null {
   const { headers, details } = headerLines(block);
   // Project titles can legitimately contain dashes ("FlowDesk — Project
   // Management Platform"), so only a bar or dot starts trailing detail.
   const title = (headers[0] ?? "").replace(/\s*[|·•].*$/, "").trim();
   if (!hasText(title)) return null;
-  const link = block.join(" ").match(URL_PATTERN)?.[0] ?? "";
+  // The live demo and the repository are different addresses: a GitHub link goes
+  // to its own field instead of overwriting the demo link.
+  const { link, github } = classifyProjectLinks([
+    ...urls,
+    ...(block.join(" ").match(new RegExp(URL_PATTERN.source, "gi")) ?? []),
+  ]);
   const extra = headers
     .slice(1)
     .map((line) =>
@@ -456,7 +464,90 @@ function parseProjectBlock(block: string[]): ProjectEntry | null {
     title,
     description: [...extra, ...details].join("\n").slice(0, 5000),
     link,
+    github,
   };
+}
+
+const normalizeLinkRefs = (links: Array<string | LinkRef>): LinkRef[] =>
+  links
+    .map((link) => (typeof link === "string" ? { url: link, label: "" } : link))
+    .filter((link) => link.url.toLowerCase().startsWith("http"));
+
+/** Invisible symbol-font bullets and zero-width characters inside extracted text. */
+const HIDDEN_CHARS = new RegExp("[\\uE000-\\uF8FF\\u200B-\\u200D\\uFEFF\\s]+", "g");
+
+/**
+ * Matches each hyperlink to the line carrying its visible words ("Live Demo",
+ * "GitHub"), walking forward through the document in reading order.
+ */
+function assignLinksToLines(lines: string[], links: LinkRef[]): Map<number, string[]> {
+  // Compare without whitespace: PDF text and link text space words differently.
+  // Symbol-font bullets are invisible private-use characters in the link text.
+  const squash = (value: string) =>
+    value
+      .replace(HIDDEN_CHARS, "")
+      .replace(/^[-•*▪◦●]+/, "")
+      .toLowerCase();
+  const squashed = lines.map(squash);
+  const byLine = new Map<number, string[]>();
+  const labelsOnLine = new Map<number, Set<string>>();
+  let cursor = 0;
+  let lastKey: string | undefined;
+  let lastIndex = -1;
+
+  for (const link of links) {
+    const label = squash(link.label);
+    if (!label) continue;
+
+    let index: number;
+    if (link.lineKey && link.lineKey === lastKey && lastIndex >= 0) {
+      // Another link on the line we just matched ("Live Demo | Github").
+      index = lastIndex;
+    } else {
+      // A caption repeated for each project ("Live Demo | Github") must move on
+      // to the next occurrence instead of matching the same line again.
+      const free = (position: number) =>
+        position >= cursor && !labelsOnLine.get(position)?.has(label);
+      // Prefer the line that is exactly this caption ("Github") over a longer
+      // one that merely contains it ("Live Demo | Github").
+      index = squashed.findIndex((line, position) => free(position) && line === label);
+      if (index < 0) {
+        index = squashed.findIndex(
+          (line, position) => free(position) && line.includes(label),
+        );
+      }
+      if (index < 0) {
+        lastKey = undefined;
+        continue;
+      }
+    }
+
+    byLine.set(index, [...(byLine.get(index) ?? []), link.url]);
+    labelsOnLine.set(index, (labelsOnLine.get(index) ?? new Set()).add(label));
+    cursor = index;
+    lastKey = link.lineKey;
+    lastIndex = index;
+  }
+  return byLine;
+}
+
+/** Finds where each block starts in the section's original lines. */
+function locateBlocks(blocks: string[][], lines: string[]): number[] {
+  let cursor = 0;
+  return blocks.map((block) => {
+    const first = stripBullet(block[0] ?? "");
+    let index = lines.findIndex(
+      (line, position) => position >= cursor && stripBullet(line) === first,
+    );
+    if (index < 0) {
+      index = lines.findIndex(
+        (line, position) =>
+          position >= cursor && hasText(line) && first.startsWith(stripBullet(line)),
+      );
+    }
+    if (index >= 0) cursor = index + 1;
+    return index;
+  });
 }
 
 function parseCertificationBlock(block: string[]): CertificationEntry | null {
@@ -542,7 +633,7 @@ function significantHeaderLines(lines: string[]): string[] {
  */
 export function parseResumeText(
   rawText: string,
-  extraLinks: string[] = [],
+  extraLinks: Array<string | LinkRef> = [],
 ): ImportResult {
   // Bullet glyphs from symbol fonts arrive as invisible private-use characters.
   const text = rawText
@@ -572,18 +663,40 @@ export function parseResumeText(
   resume.personal.email = text.match(EMAIL_PATTERN)?.[0] ?? "";
   resume.personal.phone = text.match(PHONE_PATTERN)?.[1]?.trim() ?? "";
 
-  const foundLinks = [
-    ...extraLinks.filter((link) => /^https?:\/\//i.test(link)),
-    ...(text.match(new RegExp(URL_PATTERN.source, "gi")) ?? []),
+  const rawLines = restoreIndentedBullets(text).split("\n").map(cleanLine);
+  const linkRefs = normalizeLinkRefs(extraLinks);
+  const urlsByLine = assignLinksToLines(rawLines, linkRefs);
+
+  // Personal profile links come from the header only. Anywhere else a GitHub
+  // address belongs to a project, not to the person.
+  const firstHeading = rawLines.findIndex((line) => isHeading(line) !== null);
+  const headerEnd = firstHeading < 0 ? Math.min(rawLines.length, 12) : firstHeading;
+  const headerUrls = [
+    ...[...urlsByLine.entries()]
+      .filter(([index]) => index < headerEnd)
+      .flatMap(([, urls]) => urls),
+    ...(rawLines.slice(0, headerEnd).join(" ").match(new RegExp(URL_PATTERN.source, "gi")) ?? []),
   ];
-  for (const link of foundLinks) {
+  for (const link of headerUrls) {
     const value = link.replace(/[),.;]+$/, "");
-    if (/linkedin\.com/i.test(value)) resume.personal.linkedIn = value;
-    else if (/github\.com/i.test(value)) resume.personal.github = value;
-    else if (!resume.personal.portfolio) resume.personal.portfolio = value;
+    if (/linkedin\.com/i.test(value)) resume.personal.linkedIn ||= value;
+    else if (/github\.com/i.test(value)) resume.personal.github ||= value;
+    else resume.personal.portfolio ||= value;
+  }
+  // A link with no visible words cannot be placed on a line. A bare profile
+  // address (github.com/name) is still the person's own; a repository is not.
+  for (const ref of linkRefs.filter((item) => !item.label.trim())) {
+    if (/github\.com\/[^/]+\/?$/i.test(ref.url)) resume.personal.github ||= ref.url;
+  }
+  if (!resume.personal.linkedIn) {
+    const everywhere = [
+      ...linkRefs.map((ref) => ref.url),
+      ...(text.match(new RegExp(URL_PATTERN.source, "gi")) ?? []),
+    ];
+    const linkedIn = everywhere.find((url) => /linkedin\.com/i.test(url));
+    if (linkedIn) resume.personal.linkedIn = linkedIn.replace(/[),.;]+$/, "");
   }
 
-  const rawLines = restoreIndentedBullets(text).split("\n").map(cleanLine);
   const nonEmpty = rawLines.filter(hasText);
   const header = significantHeaderLines(nonEmpty.slice(0, 12));
   if (header[0] && /^[A-Za-z][A-Za-z .'-]{1,59}$/.test(header[0])) {
@@ -602,14 +715,17 @@ export function parseResumeText(
     certifications: [],
   };
   let current: SectionKey | null = null;
-  for (const line of rawLines) {
+  const projectLineIndexes: number[] = [];
+  rawLines.forEach((line, index) => {
     const heading = isHeading(line);
     if (heading) {
       current = heading;
-      continue;
+      return;
     }
-    if (current) sections[current].push(line);
-  }
+    if (!current) return;
+    sections[current].push(line);
+    if (current === "projects") projectLineIndexes.push(index);
+  });
 
   if (sections.summary.some(hasText)) {
     resume.summary = sections.summary.filter(hasText).join(" ").slice(0, 2000);
@@ -626,8 +742,20 @@ export function parseResumeText(
     .filter((entry): entry is EducationEntry => entry !== null);
 
   const projectBlocks = splitTitleBlocks(mergeWrappedLines(sections.projects));
+  const projectStarts = locateBlocks(projectBlocks, sections.projects);
   resume.projects = projectBlocks
-    .map(parseProjectBlock)
+    .map((block, position) => {
+      // Links belong to the project whose lines they sit on.
+      const from = projectStarts[position];
+      const to =
+        projectStarts.slice(position + 1).find((start) => start >= 0) ??
+        sections.projects.length;
+      const urls: string[] = [];
+      for (let line = from; from >= 0 && line < to; line += 1) {
+        urls.push(...(urlsByLine.get(projectLineIndexes[line]) ?? []));
+      }
+      return parseProjectBlock(block, urls);
+    })
     .filter((entry): entry is ProjectEntry => entry !== null);
 
   const certificationBlocks = splitSectionBlocks(mergeWrappedLines(sections.certifications));

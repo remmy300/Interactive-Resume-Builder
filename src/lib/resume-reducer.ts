@@ -43,7 +43,7 @@ function createEntry(section: ListSection) {
         current: false,
       };
     case "projects":
-      return { id: createId(), title: "", description: "", link: "" };
+      return { id: createId(), title: "", description: "", link: "", github: "" };
     case "certifications":
       return { id: createId(), name: "", issuer: "", date: "", link: "" };
   }

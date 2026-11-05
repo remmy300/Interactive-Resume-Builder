@@ -49,7 +49,7 @@ export type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
  * Owns the resume list, the document being edited, dirty tracking, autosave,
  * and the optimistic-concurrency handshake with the API.
  */
-export function useResumeEditor() {
+export function useResumeEditor(initialResumeId?: string | null) {
   const [items, setItems] = useState<ResumeSummary[]>([]);
   const [data, dispatch] = useReducer(resumeReducer, undefined, createEmptyResume);
   const [resumeId, setResumeId] = useState<string | null>(null);
@@ -113,8 +113,15 @@ export function useResumeEditor() {
       try {
         const list = await apiFetch<ListResponse>("/api/resumes?take=50");
         setItems(list.items);
-        if (list.items[0]) {
-          await openResume(list.items[0].id);
+        // "new" starts a blank draft; a known id opens that resume; otherwise the
+        // most recently edited one opens.
+        const requested =
+          initialResumeId && initialResumeId !== "new"
+            ? list.items.find((item) => item.id === initialResumeId)
+            : undefined;
+        const target = requested ?? (initialResumeId === "new" ? undefined : list.items[0]);
+        if (target) {
+          await openResume(target.id);
         }
       } catch (loadError) {
         setSaveState("error");
@@ -129,7 +136,7 @@ export function useResumeEditor() {
     };
 
     void load();
-  }, [openResume]);
+  }, [openResume, initialResumeId]);
 
   const newResume = useCallback(() => {
     const empty = createEmptyResume();
@@ -144,14 +151,74 @@ export function useResumeEditor() {
     setError(null);
   }, []);
 
-  const importResume = useCallback((imported: ResumeData, nextTitle: string) => {
-    setResumeId(null);
-    setTitle(nextTitle.trim() || DEFAULT_TITLE);
-    setUpdatedAt(null);
-    dispatch({ type: "replace", data: imported });
-    setSaveState("idle");
-    setError(null);
-  }, []);
+  /**
+   * Fills the editor from an imported CV and saves it as a NEW resume straight
+   * away, so it appears in the saved list and on the other pages. Existing
+   * resumes are never touched. If the CV is missing required details it stays a
+   * draft and the reason is returned.
+   */
+  const importResume = useCallback(
+    async (
+      imported: ResumeData,
+      nextTitle: string,
+    ): Promise<{ saved: boolean; reason?: string }> => {
+      const importedTitle = nextTitle.trim() || DEFAULT_TITLE;
+      setResumeId(null);
+      setTitle(importedTitle);
+      setUpdatedAt(null);
+      dispatch({ type: "replace", data: imported });
+      setSaveState("idle");
+      setError(null);
+
+      const validity = checkResumeValidity(imported);
+      if (!validity.valid) {
+        return {
+          saved: false,
+          reason: `Add ${validity.missing.join(", ")} before it can be saved.`,
+        };
+      }
+
+      setIsSaving(true);
+      setSaveState("saving");
+      try {
+        const record = await apiFetch<ResumeRecord>("/api/resumes", {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ title: importedTitle, data: imported }),
+        });
+        const key = serialize(importedTitle, imported);
+        setResumeId(record.id);
+        setTitle(record.title);
+        setUpdatedAt(record.updatedAt);
+        setSavedKey(key);
+        savedKeyRef.current = key;
+        setItems((previous) => [
+          {
+            id: record.id,
+            title: record.title,
+            isPublic: record.isPublic,
+            publicSlug: record.publicSlug,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+          },
+          ...previous.filter((item) => item.id !== record.id),
+        ]);
+        setSaveState("saved");
+        return { saved: true };
+      } catch (importError) {
+        setSaveState("error");
+        const reason =
+          importError instanceof Error
+            ? importError.message
+            : "Could not save the imported CV.";
+        setError(reason);
+        return { saved: false, reason };
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [],
+  );
 
   const saveRef = useRef<(options?: { silent?: boolean }) => Promise<boolean>>(
     async () => false,
@@ -273,6 +340,23 @@ export function useResumeEditor() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
+
+  // Leaving the builder (for example to the CV check page) before autosave fires
+  // would leave the other pages showing the old version, so save on the way out.
+  const resumeIdRef = useRef(resumeId);
+  useEffect(() => {
+    resumeIdRef.current = resumeId;
+  }, [resumeId]);
+
+  useEffect(() => {
+    return () => {
+      // Only an existing resume: an unsaved draft is never created behind the
+      // user's back.
+      if (resumeIdRef.current && currentKeyRef.current !== savedKeyRef.current) {
+        void saveRef.current({ silent: true });
+      }
+    };
+  }, []);
 
   const removeResume = useCallback(async (id: string): Promise<boolean> => {
     try {
