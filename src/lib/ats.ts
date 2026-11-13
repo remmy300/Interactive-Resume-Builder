@@ -13,8 +13,7 @@ export {
   type KeywordMatch,
 } from "./ats-keywords";
 
-export type AtsStatus = "pass" | "warn" | "fail";
-
+export type AtsStatus = "pass" | "warn" | "fail" | "not_assessed";
 export type AtsGroup = "contact" | "content" | "format";
 
 export interface AtsCheck {
@@ -22,40 +21,64 @@ export interface AtsCheck {
   label: string;
   status: AtsStatus;
   detail: string;
+  /** Zero-weight checks are displayed as guidance but do not affect the score. */
   weight: number;
   group: AtsGroup;
-  /** Concrete lines or items from the resume that triggered the check. */
   examples?: string[];
 }
 
 export interface AtsReport {
+  /** General resume-content score. It is not an employer ATS ranking. */
   score: number;
-  /** Score before honesty caps are applied. */
   rawScore: number;
-  /** Why the score is capped, if it is. */
+  /** Retained for compatibility with the existing CV Check UI. */
   caps: string[];
   verdict: string;
   checks: AtsCheck[];
   passed: number;
   warnings: number;
   failed: number;
+  categoryScores: Record<AtsGroup, number | null>;
+  scoreLabel: "Resume quality score";
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function clampScore(earned: number, total: number): number {
-  if (total <= 0) return 0;
-  return Math.round((earned / total) * 100);
+function statusValue(status: AtsStatus): number {
+  if (status === "pass") return 1;
+  if (status === "warn") return 0.5;
+  return 0;
+}
+
+function scoreChecks(checks: AtsCheck[]): number {
+  const applicable = checks.filter((check) => check.weight > 0);
+  const totalWeight = applicable.reduce((sum, check) => sum + check.weight, 0);
+  if (totalWeight === 0) return 0;
+  const earned = applicable.reduce(
+    (sum, check) => sum + check.weight * statusValue(check.status),
+    0,
+  );
+  return Math.round((earned / totalWeight) * 100);
+}
+
+function scoreGroup(checks: AtsCheck[], group: AtsGroup): number | null {
+  const selected = checks.filter((check) => check.group === group && check.weight > 0);
+  if (selected.length === 0) return null;
+  return scoreChecks(selected);
 }
 
 function verdictFor(score: number): string {
-  if (score >= 85) return "Strong. Ready to send once tailored to the job.";
-  if (score >= 70) return "Good, but a few fixes will make it stand out.";
-  if (score >= 50) return "Needs work before you apply.";
-  return "Not ready. Major gaps would get this screened out.";
+  if (score >= 90) return "Strong resume foundation. Review the job-specific requirements before applying.";
+  if (score >= 80) return "Good resume foundation. A few targeted improvements may help.";
+  if (score >= 70) return "Several improvements could make the resume clearer and more complete.";
+  if (score >= 60) return "The resume has some content gaps worth addressing.";
+  return "The resume needs more complete and specific information.";
 }
 
-/** Scores a resume against the checks an ATS and a recruiter care about. */
+/**
+ * Evaluates structured resume content. Document parsing and job-specific
+ * matching are separate assessments and must not be inferred from this score.
+ */
 export function analyzeResume(data: ResumeData): AtsReport {
   const checks: AtsCheck[] = [];
   const bullets = resumeBullets(data);
@@ -69,17 +92,19 @@ export function analyzeResume(data: ResumeData): AtsReport {
     (entry) =>
       hasText(entry.company) &&
       hasText(entry.role) &&
-      (hasText(entry.startDate) || entry.current),
+      hasText(entry.startDate) &&
+      (entry.current || hasText(entry.endDate)),
+  );
+  const completeProjects = data.projects.filter(
+    (entry) => hasText(entry.title) && hasText(entry.description),
   );
   const completeEducation = data.education.filter(
     (entry) => hasText(entry.college) || hasText(entry.degree),
   );
-  const unquantified = bullets.filter((line) => !isQuantified(line));
-  const quantified = bullets.length - unquantified.length;
-  const withoutVerb = bullets.filter((line) => !ACTION_VERBS.has(leadingWord(line)));
-  const actionBullets = bullets.length - withoutVerb.length;
+  const quantified = bullets.filter(isQuantified).length;
+  const actionBullets = bullets.filter((line) => ACTION_VERBS.has(leadingWord(line))).length;
   const sample = (lines: string[]) =>
-    lines.slice(0, 3).map((line) => (line.length > 110 ? `${line.slice(0, 109)}…` : line));
+    lines.slice(0, 3).map((line) => (line.length > 110 ? line.slice(0, 109) + "…" : line));
 
   const add = (
     id: string,
@@ -96,26 +121,26 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "Full name",
     hasText(data.personal.name) ? "pass" : "fail",
     hasText(data.personal.name)
-      ? "Recruiters and parsers can identify the document owner."
-      : "Add your full name at the top of the resume.",
-    8,
+      ? "A name is present in the resume data."
+      : "Add your name to the resume.",
+    5,
     "contact",
   );
 
   add(
     "email",
-    "Professional email",
+    "Email address",
     !hasText(data.personal.email)
       ? "fail"
       : EMAIL_PATTERN.test(data.personal.email.trim())
         ? "pass"
         : "warn",
     !hasText(data.personal.email)
-      ? "An email address is required on every application."
+      ? "Add an email address so employers can contact you."
       : EMAIL_PATTERN.test(data.personal.email.trim())
-        ? "A valid email address is present."
-        : "That email address does not look valid.",
-    8,
+        ? "The email address has a valid basic format."
+        : "Check the email address format.",
+    5,
     "contact",
   );
 
@@ -125,8 +150,8 @@ export function analyzeResume(data: ResumeData): AtsReport {
     hasText(data.personal.phone) ? "pass" : "warn",
     hasText(data.personal.phone)
       ? "A phone number is present."
-      : "Optional, but most recruiters expect a phone number.",
-    5,
+      : "Add a phone number if the employer or application requires one.",
+    1,
     "contact",
   );
 
@@ -135,9 +160,9 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "Location",
     hasText(data.personal.location) ? "pass" : "warn",
     hasText(data.personal.location)
-      ? "Location is present and searchable."
-      : "Add a city and country so location filters can match you.",
-    4,
+      ? "A location is present."
+      : "Add a city or region when location is relevant to the role.",
+    1,
     "contact",
   );
 
@@ -146,21 +171,21 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "Professional title",
     hasText(data.personal.title) ? "pass" : "warn",
     hasText(data.personal.title)
-      ? "A target job title helps keyword matching."
-      : "Add the job title you are applying for, for example Frontend Developer.",
-    5,
+      ? "A professional title is present."
+      : "Consider adding the type of role you are targeting.",
+    2,
     "contact",
   );
 
   const links = [data.personal.linkedIn, data.personal.github, data.personal.portfolio];
   add(
     "links",
-    "Online profiles",
+    "Professional links",
     links.some(hasText) ? "pass" : "warn",
     links.some(hasText)
-      ? "LinkedIn, GitHub, or a portfolio is included."
-      : "Add at least one profile link recruiters can open.",
-    3,
+      ? "At least one professional profile or portfolio link is present."
+      : "Add relevant profile links when they support your application.",
+    1,
     "contact",
   );
 
@@ -168,15 +193,15 @@ export function analyzeResume(data: ResumeData): AtsReport {
   add(
     "summary",
     "Professional summary",
-    summaryLength === 0 ? "fail" : summaryLength < 40 ? "warn" : summaryLength > 700 ? "warn" : "pass",
+    summaryLength === 0 ? "warn" : summaryLength < 40 ? "warn" : summaryLength > 900 ? "warn" : "pass",
     summaryLength === 0
-      ? "Add a two or three sentence summary tailored to the job."
+      ? "A summary is optional, but can help explain your target role and strengths."
       : summaryLength < 40
-        ? "The summary is very short. Aim for 40–600 characters."
-        : summaryLength > 700
-          ? "The summary is long. Keep it under about 700 characters."
+        ? "The summary is very short. Add useful context if a summary helps your application."
+        : summaryLength > 900
+          ? "Consider shortening the summary so the most relevant information is easier to scan."
           : "A concise summary is present.",
-    8,
+    5,
     "content",
   );
 
@@ -187,83 +212,77 @@ export function analyzeResume(data: ResumeData): AtsReport {
       ? "pass"
       : data.experience.some((entry) => hasText(entry.company) || hasText(entry.role))
         ? "warn"
-        : "fail",
+        : completeProjects.length > 0
+          ? "warn"
+          : "fail",
     completeExperience.length > 0
-      ? `${completeExperience.length} role${completeExperience.length === 1 ? "" : "s"} with company, title, and dates.`
-      : "Add a role with a company, job title, and start date.",
-    12,
+      ? completeExperience.length + " role(s) include an employer, title, and dates."
+      : completeProjects.length > 0
+        ? "No complete employment entry was found. Project experience can still demonstrate relevant skills, especially for early-career candidates."
+        : "Add relevant work, internship, freelance, volunteer, or project experience.",
+    8,
     "content",
   );
 
   add(
     "bullets",
-    "Achievement bullets",
+    "Achievement and responsibility details",
     bullets.length >= 3 ? "pass" : bullets.length > 0 ? "warn" : "fail",
     bullets.length >= 3
-      ? `${bullets.length} bullets give the parser concrete achievements to read.`
-      : "Add at least three bullet points describing what you achieved.",
-    10,
+      ? bullets.length + " description lines provide content to review."
+      : bullets.length > 0
+        ? "Only " + bullets.length + " description line(s) were found. Add more detail where it accurately represents your work."
+        : "Add responsibilities, achievements, or project details.",
+    6,
     "content",
+    sample(bullets),
   );
 
   add(
     "numbers",
-    "Measurable results",
+    "Measurable evidence",
+    bullets.length === 0 || quantified === 0 ? "warn" : "pass",
     bullets.length === 0
-      ? "fail"
-      : quantified / bullets.length >= 0.5
-        ? "pass"
-        : quantified / bullets.length >= 0.25
-          ? "warn"
-          : "fail",
-    bullets.length === 0
-      ? "Add bullets before adding metrics."
-      : `${quantified} of ${bullets.length} bullets include a number, percentage, or scale. Aim for at least half: say how much, how many, or how fast.`,
-    10,
+      ? "Add achievement details before assessing measurable evidence."
+      : quantified + " of " + bullets.length + " lines contain a detectable figure. Quantified outcomes are useful when genuine, but are not required for every strong achievement.",
+    2,
     "content",
-    sample(unquantified),
+    sample(bullets.filter((line) => !isQuantified(line))),
   );
 
   add(
     "verbs",
-    "Action verbs",
+    "Action-oriented descriptions",
+    bullets.length === 0 ? "warn" : actionBullets > 0 ? "pass" : "warn",
     bullets.length === 0
-      ? "fail"
-      : actionBullets / bullets.length >= 0.7
-        ? "pass"
-        : actionBullets / bullets.length >= 0.4
-          ? "warn"
-          : "fail",
-    bullets.length === 0
-      ? "Add bullets that start with a verb."
-      : `${actionBullets} of ${bullets.length} bullets start with a strong action verb (for example built, led, reduced).`,
-    6,
+      ? "Add experience or project descriptions."
+      : actionBullets + " of " + bullets.length + " lines begin with a verb in the current action-verb list. This is a writing hint, not a parser requirement.",
+    1,
     "content",
-    sample(withoutVerb),
+    sample(bullets.filter((line) => !ACTION_VERBS.has(leadingWord(line)))),
   );
 
   add(
     "skills",
     "Skills section",
-    skills >= 6 ? "pass" : skills > 0 ? "warn" : "fail",
-    skills >= 6
-      ? `${skills} skills are listed and searchable by keyword.`
-      : "List at least six relevant tools, languages, or methods.",
-    8,
+    skills >= 4 ? "pass" : skills > 0 ? "warn" : "fail",
+    skills > 0
+      ? skills + " skill entries are listed. Relevance should be assessed against a specific job separately."
+      : "Add the technical or professional skills relevant to your target roles.",
+    6,
     "content",
   );
 
-  const completeProjects = data.projects.filter(
-    (entry) => hasText(entry.title) && hasText(entry.description),
-  );
   add(
     "projects",
-    "Relevant projects",
-    completeProjects.length > 0 ? "pass" : "warn",
+    "Projects",
+    completeProjects.length > 0 || completeExperience.length > 0 ? "pass" : "warn",
     completeProjects.length > 0
-      ? `${completeProjects.length} project${completeProjects.length === 1 ? "" : "s"} show practical experience.`
-      : "Add one or two projects that demonstrate practical experience.",
-    5,
+      ? completeProjects.length + " complete project(s) are listed."
+      : completeExperience.length > 0
+        ? "No projects are listed. Projects are optional when work experience already demonstrates relevant skills."
+        : "Consider adding projects if they demonstrate skills not covered by your work history.",
+    completeProjects.length > 0 || completeExperience.length > 0 ? 2 : 1,
     "content",
   );
 
@@ -272,96 +291,66 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "Education",
     completeEducation.length > 0 ? "pass" : "warn",
     completeEducation.length > 0
-      ? "Education is present."
-      : "Add a degree, course, or certification.",
-    5,
+      ? "Education information is present."
+      : "Add education or relevant training when applicable to your target roles.",
+    1,
     "content",
   );
 
+  // A resume JSON template cannot prove how the exported PDF/DOCX is parsed.
   add(
     "format",
-    "ATS-safe layout",
-    data.template === "two-column" ? "warn" : "pass",
-    data.template === "two-column"
-      ? "Two-column layouts can be read out of order. Switch to the ATS safe template before applying."
-      : "Single-column layout keeps the reading order predictable.",
-    5,
+    "Document compatibility",
+    "not_assessed",
+    "This check cannot be verified from resume data alone. Upload the exported PDF or DOCX for text extraction and reading-order tests.",
+    0,
     "format",
   );
 
   const years = experienceYears(data);
-  const maxWords = years >= 10 ? 1000 : 750;
+  const maxWords = years >= 10 ? 1000 : 850;
+  const wordCountStatus =
+    words.length === 0 ? "warn" : words.length > maxWords * 1.4 ? "warn" : "pass";
   add(
     "length",
     "Resume length",
-    words.length >= 200 && words.length <= maxWords
-      ? "pass"
-      : words.length >= 100 && words.length <= maxWords * 1.3
-        ? "warn"
-        : "fail",
-    words.length >= 200 && words.length <= maxWords
-      ? `About ${words.length} words, a healthy length for your experience.`
-      : words.length > maxWords
-        ? `About ${words.length} words is too long${years < 10 ? " for under ten years of experience. Recruiters expect one page, two at most" : ""}. Cut older or weaker detail.`
-        : `About ${words.length} words is thin. Add detail on what you achieved.`,
-    4,
+    wordCountStatus,
+    "Approximately " + words.length + " words were found in the structured resume data. Length is guidance only; suitability depends on career stage, role, and document format.",
+    0,
     "format",
   );
 
+  const firstPerson = /\b(i|me|my)\b/i.test([data.summary, ...bullets].join(" "));
   add(
     "pronouns",
-    "No first-person pronouns",
-    /\b(i|me|my)\b/i.test([data.summary, ...bullets].join(" "))
-      ? "warn"
-      : "pass",
-    /\b(i|me|my)\b/i.test([data.summary, ...bullets].join(" "))
-      ? 'Replace "I", "me", and "my" with direct achievement statements.'
-      : "Wording is neutral and professional.",
-    3,
+    "Writing perspective",
+    firstPerson ? "warn" : "pass",
+    firstPerson
+      ? "First-person wording was detected. This is a style choice, not an ATS parsing failure."
+      : "No first-person wording was detected in the summary or description lines.",
+    0,
     "format",
   );
 
   checks.push(...qualityChecks(data));
 
-  const totalWeight = checks.reduce((sum, check) => sum + check.weight, 0);
-  const earned = checks.reduce(
-    (sum, check) =>
-      sum + (check.status === "pass" ? check.weight : check.status === "warn" ? check.weight / 2 : 0),
-    0,
-  );
-
-  const rawScore = clampScore(earned, totalWeight);
-  const statusOf = (id: string) => checks.find((check) => check.id === id)?.status;
-  const caps: Array<[number, string]> = [];
-  if (statusOf("name") === "fail" || statusOf("email") === "fail") {
-    caps.push([40, "Recruiters cannot contact you without a name and email."]);
-  }
-  if (statusOf("experience") === "fail" && completeProjects.length === 0) {
-    caps.push([55, "There is no work experience or project evidence yet."]);
-  }
-  if (bullets.length < 3) {
-    caps.push([60, "Fewer than three achievement bullets gives a recruiter little to judge."]);
-  }
-  if (bullets.length > 0 && statusOf("numbers") === "fail") {
-    caps.push([65, "Almost none of your bullets show measurable results."]);
-  }
-  if (statusOf("weak-phrases") === "fail") {
-    caps.push([70, "Most bullets use vague wording instead of stating results."]);
-  }
-  if (statusOf("dates") === "fail") {
-    caps.push([75, "Impossible dates undermine an otherwise good resume."]);
-  }
-  const ceiling = caps.length ? Math.min(...caps.map(([max]) => max)) : 100;
-  const score = Math.min(rawScore, ceiling);
+  const score = scoreChecks(checks);
+  const categoryScores: Record<AtsGroup, number | null> = {
+    contact: scoreGroup(checks, "contact"),
+    content: scoreGroup(checks, "content"),
+    format: scoreGroup(checks, "format"),
+  };
 
   return {
     score,
-    rawScore,
-    caps: score < rawScore ? caps.filter(([max]) => max === ceiling).map(([, why]) => why) : [],
+    rawScore: score,
+    caps: [],
     verdict: verdictFor(score),
     checks,
     passed: checks.filter((check) => check.status === "pass").length,
     warnings: checks.filter((check) => check.status === "warn").length,
     failed: checks.filter((check) => check.status === "fail").length,
+    categoryScores,
+    scoreLabel: "Resume quality score",
   };
 }

@@ -35,4 +35,4 @@ export function ScoreCaps({ report }: { report: AtsReport }) {
 }
 
 export const SCORE_NOTE =
-  "This is an honest heuristic review, not a real ATS score. No ATS publishes one. It checks what recruiters and parsers react to: clear contact details, specific results, consistent dates and claims you can back up.";
+  "This is Resume Studio's own resume-content estimate, not an employer ATS ranking. It evaluates the saved resume data; PDF/DOCX parsing and reading-order compatibility are not yet verified.";

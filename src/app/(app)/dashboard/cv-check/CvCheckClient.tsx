@@ -4,6 +4,7 @@ import Link from "next/link";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import { analyzeResume, type AtsStatus } from "@/lib/ats";
@@ -16,6 +17,11 @@ const STATUS = {
   pass: { icon: CheckCircleIcon, className: "text-emerald-600", label: "Pass" },
   warn: { icon: WarningAmberIcon, className: "text-amber-600", label: "Improve" },
   fail: { icon: CancelIcon, className: "text-red-600", label: "Fix" },
+  not_assessed: {
+    icon: InfoOutlinedIcon,
+    className: "text-slate-500",
+    label: "Not assessed",
+  },
 } satisfies Record<
   AtsStatus,
   { icon: typeof CheckCircleIcon; className: string; label: string }
@@ -94,7 +100,7 @@ export function CvCheckClient() {
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      CV quality score
+                      Resume content score
                     </p>
                     <p className="mt-1 text-4xl font-bold text-slate-900">
                       {report.score}
@@ -109,6 +115,22 @@ export function CvCheckClient() {
                 <p className="mt-3 text-sm font-medium text-slate-800">{report.verdict}</p>
                 <ScoreCaps report={report} />
                 <p className="mt-3 text-xs text-slate-500">{SCORE_NOTE}</p>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Contact and identity</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {report.categoryScores.contact ?? "—"}
+                      {report.categoryScores.contact !== null && <span className="text-xs font-normal text-slate-500">/100</span>}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Resume content</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {report.categoryScores.content ?? "—"}
+                      {report.categoryScores.content !== null && <span className="text-xs font-normal text-slate-500">/100</span>}
+                    </p>
+                  </div>
+                </div>
                 <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
                   <div
                     className="h-full rounded-full bg-slate-900"

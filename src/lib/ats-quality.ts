@@ -2,11 +2,6 @@ import { hasText, resumeBullets, skillItems } from "./ats-text";
 import type { AtsCheck, AtsStatus } from "./ats";
 import type { ResumeData } from "./resume-schema";
 
-/**
- * Content-quality checks. These look at what the resume actually says, not only
- * whether a section exists, so a resume full of vague bullets cannot score well.
- */
-
 const MAX_EXAMPLES = 3;
 
 const WEAK_PHRASES =
@@ -15,13 +10,28 @@ const WEAK_PHRASES =
 const CLICHES =
   /\b(hard[- ]?working|team player|results[- ]driven|detail[- ]oriented|self[- ]motivated|go[- ]getter|fast learner|quick learner|passionate about|dynamic|synergy|think outside the box|excellent communication skills|strong work ethic|highly motivated)\b/i;
 
-// A figure that says something about scale or impact. A bare year such as
-// "2023" is a date, not a result.
+// Metrics are useful evidence, but their absence is not proof of a weak achievement.
 const METRIC =
-  /(\d+(\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(,\d{3})+\b|\b(?!(19|20)\d{2}\b)\d+\+?\b)/;
+  /(\d+(?:\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(?:\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(?:,\d{3})+\b|\b(?!(?:19|20)\d{2}\b)\d+\+?\b)/;
+
+const SKILL_ALIASES: Record<string, string[]> = {
+  "react": ["react", "react.js", "reactjs"],
+  "next.js": ["next.js", "nextjs", "next js"],
+  "node.js": ["node.js", "nodejs", "node"],
+  "express": ["express", "express.js", "expressjs"],
+  "postgresql": ["postgresql", "postgres"],
+  "javascript": ["javascript", "js"],
+  "typescript": ["typescript", "ts"],
+  "mongodb": ["mongodb", "mongo db"],
+  "tailwind css": ["tailwind css", "tailwind"],
+  "amazon web services": ["amazon web services", "aws"],
+  "google cloud platform": ["google cloud platform", "gcp"],
+  "c sharp": ["c#", "c sharp"],
+  "cplusplus": ["c++", "cplusplus"],
+};
 
 const trim = (line: string, max = 110) =>
-  line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
+  line.length > max ? line.slice(0, max - 1).trimEnd() + "…" : line;
 
 export const isQuantified = (line: string) => METRIC.test(line);
 
@@ -35,11 +45,12 @@ function worst(statuses: AtsStatus[]): AtsStatus {
   return "pass";
 }
 
-/* ------------------------------- dates ----------------------------------- */
-
 function monthIndex(value: string): number | null {
   const match = value.trim().match(/^(\d{4})-(\d{2})$/);
-  return match ? Number(match[1]) * 12 + Number(match[2]) - 1 : null;
+  if (!match) return null;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return Number(match[1]) * 12 + month - 1;
 }
 
 function nowIndex(now: Date): number {
@@ -62,7 +73,7 @@ function experienceSpans(data: ResumeData, now: Date): Span[] {
     }));
 }
 
-/** Total months of experience, with overlapping roles counted once. */
+/** Counts overlapping employment periods once rather than double-counting them. */
 export function experienceYears(data: ResumeData, now = new Date()): number {
   const spans = experienceSpans(data, now)
     .filter((span): span is Span & { start: number; end: number } =>
@@ -90,26 +101,13 @@ function dateCheck(data: ResumeData, now: Date): AtsCheck | null {
 
   for (const span of spans) {
     if (span.start === null) {
-      warnings.push(`${span.label}: add a start date.`);
+      warnings.push(span.label + ": add a valid start date (YYYY-MM).");
     } else if (span.start > current + 1) {
-      warnings.push(`${span.label}: the start date is in the future.`);
+      warnings.push(span.label + ": the start date is in the future.");
     }
-    if (span.start !== null && span.end !== null && span.end < span.start) {
-      failures.push(`${span.label}: the end date is before the start date.`);
-    }
-  }
 
-  const dated = spans
-    .filter((span): span is Span & { start: number; end: number } =>
-      span.start !== null && span.end !== null && span.end >= span.start,
-    )
-    .sort((a, b) => a.start - b.start);
-  for (let index = 1; index < dated.length; index += 1) {
-    const gap = dated[index].start - dated[index - 1].end - 1;
-    if (gap > 6) {
-      warnings.push(
-        `${gap}-month gap before ${dated[index].label}. Recruiters notice this, so mention what you did (study, freelance, caregiving).`,
-      );
+    if (span.start !== null && span.end !== null && span.end < span.start) {
+      failures.push(span.label + ": the end date is before the start date.");
     }
   }
 
@@ -117,54 +115,54 @@ function dateCheck(data: ResumeData, now: Date): AtsCheck | null {
     ...failures.map(() => "fail" as const),
     ...warnings.map(() => "warn" as const),
   ]);
+
   return {
     id: "dates",
-    label: "Dates and career timeline",
+    label: "Date consistency",
     status,
     detail:
       status === "pass"
-        ? "Dates are complete and consistent, with no unexplained gaps."
-        : "There are problems with your dates or timeline.",
-    weight: 6,
+        ? "The employment dates provided are internally consistent."
+        : "Check incomplete, invalid, future, or reversed employment dates.",
+    weight: 4,
     group: "content",
-    examples: [...failures, ...warnings].slice(0, MAX_EXAMPLES + 1),
+    examples: [...failures, ...warnings].slice(0, MAX_EXAMPLES),
   };
 }
-
-/* ------------------------------ bullet checks ----------------------------- */
 
 function bulletQualityChecks(data: ResumeData): AtsCheck[] {
   const bullets = resumeBullets(data);
   if (bullets.length === 0) return [];
-  const checks: AtsCheck[] = [];
 
+  const checks: AtsCheck[] = [];
   const weak = bullets.filter((line) => WEAK_PHRASES.test(line));
-  const weakRatio = weak.length / bullets.length;
+
   checks.push({
     id: "weak-phrases",
-    label: "Specific, confident wording",
-    status: weak.length === 0 ? "pass" : weakRatio >= 0.3 ? "fail" : "warn",
+    label: "Specific achievement wording",
+    status: weak.length === 0 ? "pass" : "warn",
     detail:
       weak.length === 0
-        ? "Bullets avoid vague phrases like “responsible for” and “worked on”."
-        : `${weak.length} of ${bullets.length} bullets use vague phrases such as “responsible for”, “worked on” or “helped”. State what you did and the result instead.`,
-    weight: 6,
+        ? "No common vague phrases were detected."
+        : weak.length + " of " + bullets.length + " achievement lines contain wording that could be more specific. Review the examples; context matters.",
+    weight: 2,
     group: "content",
     examples: weak.slice(0, MAX_EXAMPLES).map((line) => trim(line)),
   });
 
   const wordCount = (line: string) => line.split(/\s+/).filter(Boolean).length;
   const tooShort = bullets.filter((line) => wordCount(line) < 6);
-  const tooLong = bullets.filter((line) => wordCount(line) > 35);
+  const tooLong = bullets.filter((line) => wordCount(line) > 40);
+
   checks.push({
     id: "bullet-length",
-    label: "Bullet length",
+    label: "Achievement readability",
     status: tooShort.length + tooLong.length === 0 ? "pass" : "warn",
     detail:
       tooShort.length + tooLong.length === 0
-        ? "Bullets are a readable length (about one or two lines)."
-        : `${tooShort.length} bullets are too thin to show impact (under 6 words) and ${tooLong.length} are too long to skim (over 35 words). Aim for one to two lines each.`,
-    weight: 3,
+        ? "Achievement lines are within a practical scanning length."
+        : tooShort.length + " lines are very short and " + tooLong.length + " are long. Review these for clarity rather than following a rigid word limit.",
+    weight: 1,
     group: "format",
     examples: [...tooShort, ...tooLong].slice(0, MAX_EXAMPLES).map((line) => trim(line)),
   });
@@ -177,97 +175,123 @@ function bulletQualityChecks(data: ResumeData): AtsCheck[] {
   const repeated = [...counts.entries()]
     .filter(([, count]) => count >= 3)
     .sort((a, b) => b[1] - a[1]);
+
   checks.push({
     id: "verb-variety",
-    label: "Varied opening verbs",
+    label: "Varied opening words",
     status: repeated.length === 0 ? "pass" : "warn",
     detail:
       repeated.length === 0
-        ? "Bullets open with a good mix of verbs."
-        : "Several bullets open with the same word, which reads as repetitive.",
-    weight: 3,
+        ? "No repeated opening word pattern was detected."
+        : "Some achievement lines begin with the same word. Consider varying the wording where it improves readability.",
+    weight: 1,
     group: "content",
-    examples: repeated
-      .slice(0, MAX_EXAMPLES)
-      .map(([word, count]) => `“${word}” starts ${count} bullets`),
+    examples: repeated.slice(0, MAX_EXAMPLES).map(([word, count]) =>
+      "“" + word + "” starts " + count + " lines",
+    ),
+  });
+
+  const quantified = bullets.filter(isQuantified);
+  checks.push({
+    id: "metrics",
+    label: "Evidence of scale or outcomes",
+    status: quantified.length > 0 ? "pass" : "warn",
+    detail:
+      quantified.length > 0
+        ? quantified.length + " of " + bullets.length + " achievement lines include a detectable figure. Numbers can add useful context, but are not required for every achievement."
+        : "No measurable figures were detected. Add genuine scale or outcome data where you have it; do not invent metrics.",
+    weight: 2,
+    group: "content",
+    examples: bullets.filter((line) => !isQuantified(line)).slice(0, MAX_EXAMPLES).map(trim),
   });
 
   return checks;
 }
 
-function roleBulletCheck(data: ResumeData): AtsCheck | null {
+function roleContentCheck(data: ResumeData): AtsCheck | null {
   const roles = data.experience.filter(
     (entry) => hasText(entry.company) || hasText(entry.role),
   );
   if (roles.length === 0) return null;
 
-  const lines = (text: string) =>
-    text.split("\n").filter((line) => line.replace(/^\s*[-•*]\s*/, "").trim()).length;
-  const empty = roles.filter((entry) => lines(entry.description) === 0);
-  const thin = roles.filter((entry) => {
-    const count = lines(entry.description);
-    return count > 0 && count < 2;
-  });
-  const heavy = roles.filter((entry) => lines(entry.description) > 8);
-
-  const examples = [
-    ...empty.map((e) => `${e.company || e.role}: no achievements listed.`),
-    ...thin.map((e) => `${e.company || e.role}: only one bullet. Add at least two or three.`),
-    ...heavy.map((e) => `${e.company || e.role}: more than 8 bullets. Keep the strongest 4–6.`),
-  ];
-  const status: AtsStatus = empty.length ? "fail" : examples.length ? "warn" : "pass";
+  const empty = roles.filter((entry) => !hasText(entry.description));
   return {
-    id: "role-bullets",
-    label: "Achievements under each role",
-    status,
+    id: "role-content",
+    label: "Experience descriptions",
+    status: empty.length === 0 ? "pass" : "warn",
     detail:
-      status === "pass"
-        ? "Each role has a focused set of achievements."
-        : "Some roles list no achievements, or too many or too few.",
-    weight: 6,
+      empty.length === 0
+        ? "Each listed role contains descriptive content."
+        : empty.length + " of " + roles.length + " listed roles have no description. Add relevant responsibilities or achievements where applicable.",
+    weight: 3,
     group: "content",
-    examples: examples.slice(0, MAX_EXAMPLES),
+    examples: empty.slice(0, MAX_EXAMPLES).map((entry) =>
+      entry.company || entry.role || "Untitled role",
+    ),
   };
 }
-
-/* ------------------------------ wording checks ---------------------------- */
 
 function clicheCheck(data: ResumeData): AtsCheck {
   const sources = [data.summary, ...resumeBullets(data)];
   const hits = sources
-    .map((text) => text.match(CLICHES)?.[0])
-    .filter((hit): hit is string => Boolean(hit));
+    .flatMap((text) => [...text.matchAll(new RegExp(CLICHES.source, "gi"))].map((match) => match[0]));
   const unique = [...new Set(hits.map((hit) => hit.toLowerCase()))];
+
   return {
     id: "cliches",
-    label: "No empty buzzwords",
-    status: unique.length === 0 ? "pass" : unique.length >= 3 ? "fail" : "warn",
+    label: "Specific language",
+    status: unique.length === 0 ? "pass" : "warn",
     detail:
       unique.length === 0
-        ? "No overused buzzwords. Claims are backed by specifics."
-        : "Buzzwords like these say nothing a recruiter can verify. Replace them with a result or a fact.",
-    weight: 4,
+        ? "No common generic phrases were detected."
+        : "Review generic phrases and replace them with concrete skills, responsibilities, or evidence when possible.",
+    weight: 1,
     group: "content",
-    examples: unique.slice(0, MAX_EXAMPLES).map((word) => `“${word}”`),
+    examples: unique.slice(0, MAX_EXAMPLES).map((word) => "“" + word + "”"),
   };
 }
 
-function emailCheck(data: ResumeData): AtsCheck | null {
-  const email = data.personal.email.trim();
-  if (!email.includes("@")) return null;
-  const local = email.split("@")[0];
-  const digits = (local.match(/\d/g) ?? []).length;
-  const odd = digits >= 5 || /(cute|sexy|baby|princess|gamer|hacker|1337|xxx)/i.test(local);
-  return {
-    id: "email-tone",
-    label: "Professional email address",
-    status: odd ? "warn" : "pass",
-    detail: odd
-      ? "This address looks informal. Use a name-based address such as firstname.lastname@."
-      : "The email address looks professional.",
-    weight: 2,
-    group: "contact",
-  };
+function normalizeSkillText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/c\+\+/g, " cplusplus ")
+    .replace(/c#/g, " c sharp ")
+    .replace(/\.js\b/g, " js ")
+    .replace(/[^a-z0-9+#]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function skillTerms(skill: string): string[] {
+  const normalized = normalizeSkillText(skill);
+  const key = Object.keys(SKILL_ALIASES).find(
+    (candidate) => normalizeSkillText(candidate) === normalized,
+  );
+  const aliases = key ? SKILL_ALIASES[key] : [skill];
+  return [...new Set([skill, ...aliases].map(normalizeSkillText).filter(Boolean))];
+}
+
+function containsSkill(corpus: string, skill: string): boolean {
+  const normalizedCorpus = " " + normalizeSkillText(corpus) + " ";
+  return skillTerms(skill).some((term) => {
+    const padded = " " + term + " ";
+    return normalizedCorpus.includes(padded);
+  });
+}
+
+export function findUnsupportedSkills(data: ResumeData): string[] {
+  const skills = [
+    ...skillItems(data.skills.languages),
+    ...skillItems(data.skills.technologies),
+    ...skillItems(data.skills.databases),
+  ];
+  const corpus = [
+    data.summary,
+    ...data.experience.flatMap((entry) => [entry.role, entry.description]),
+    ...data.projects.flatMap((project) => [project.title, project.description]),
+  ].join("\n");
+
+  return skills.filter((skill) => !containsSkill(corpus, skill));
 }
 
 function skillsEvidenceCheck(data: ResumeData): AtsCheck | null {
@@ -276,49 +300,31 @@ function skillsEvidenceCheck(data: ResumeData): AtsCheck | null {
     ...skillItems(data.skills.technologies),
     ...skillItems(data.skills.databases),
   ];
-  if (skills.length < 6) return null;
+  if (skills.length === 0) return null;
 
-  const corpus = [
-    data.summary,
-    ...data.experience.flatMap((e) => [e.role, e.description]),
-    ...data.projects.flatMap((p) => [p.title, p.description]),
-  ]
-    .join("\n")
-    .toLowerCase();
-
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const unsupported = skills.filter((skill) => {
-    const term = skill.toLowerCase();
-    if (term.length <= 3) {
-      return !new RegExp(`(^|[^a-z0-9+#])${escape(term)}($|[^a-z0-9+#])`).test(corpus);
-    }
-    return !corpus.includes(term);
-  });
-
+  const unsupported = findUnsupportedSkills(data);
+  const supportedCount = skills.length - unsupported.length;
   const ratio = unsupported.length / skills.length;
+
   return {
     id: "skills-evidence",
-    label: "Skills backed by experience",
-    status: ratio > 0.7 ? "fail" : ratio > 0.5 ? "warn" : "pass",
+    label: "Skills supported by resume content",
+    status: ratio > 0.7 ? "warn" : "pass",
     detail:
-      ratio > 0.5
-        ? `${unsupported.length} of ${skills.length} listed skills never appear in your experience or projects. Recruiters probe these in interviews, so show where you used them or cut them.`
-        : `${skills.length - unsupported.length} of ${skills.length} listed skills are shown in your experience or projects.`,
-    weight: 5,
+      supportedCount + " of " + skills.length + " listed technical skills were also found in the summary, experience, or project descriptions. A listed skill is not automatically invalid just because the resume does not repeat it elsewhere.",
+    weight: 2,
     group: "content",
-    examples:
-      ratio > 0.5 ? unsupported.slice(0, 6) : undefined,
+    examples: unsupported.length > 0 ? unsupported.slice(0, MAX_EXAMPLES) : undefined,
   };
 }
 
-/** All content-quality checks that apply to this resume. */
+/** Content checks are advisory; none claims to predict an employer's ATS decision. */
 export function qualityChecks(data: ResumeData, now = new Date()): AtsCheck[] {
   return [
     ...bulletQualityChecks(data),
-    roleBulletCheck(data),
+    roleContentCheck(data),
     dateCheck(data, now),
     clicheCheck(data),
-    emailCheck(data),
     skillsEvidenceCheck(data),
   ].filter((check): check is AtsCheck => check !== null);
 }
