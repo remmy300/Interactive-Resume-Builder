@@ -7,6 +7,7 @@ import {
   resumeText,
   suggestSkillsField,
 } from "./ats";
+import { experienceYears } from "./ats-quality";
 import { createEmptyResume, type ResumeData } from "./resume-schema";
 
 function completeResume(): ResumeData {
@@ -386,7 +387,7 @@ describe("general assessment regression coverage", () => {
       "Implemented OAuth authentication using Clerk.",
       "Built reusable React components for the dashboard.",
       "Fixed a session persistence bug after page refresh.",
-    ].join("\\n");
+    ].join("\n");
     const report = analyzeResume(data);
     expect(report.checks.find((check) => check.id === "numbers")?.status).toBe("warn");
     expect(report.caps).toEqual([]);
