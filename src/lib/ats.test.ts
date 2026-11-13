@@ -332,7 +332,9 @@ describe("analyzeResume honesty", () => {
 
   it("flags listed skills that the experience never shows", () => {
     const data = completeResume();
-    data.skills.technologies = "Kubernetes, Terraform, Ansible, Go, Rust";
+    data.skills.languages = "";
+    data.skills.databases = "";
+    data.skills.technologies = "Kubernetes, Terraform, Ansible, Go, Rust, Scala";
     expect(find(data, "skills-evidence")?.status).not.toBe("pass");
   });
 });
