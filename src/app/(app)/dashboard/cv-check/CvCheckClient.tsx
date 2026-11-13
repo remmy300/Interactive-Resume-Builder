@@ -94,7 +94,7 @@ export function CvCheckClient() {
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      CV quality score
+                      Resume content score
                     </p>
                     <p className="mt-1 text-4xl font-bold text-slate-900">
                       {report.score}
@@ -109,6 +109,22 @@ export function CvCheckClient() {
                 <p className="mt-3 text-sm font-medium text-slate-800">{report.verdict}</p>
                 <ScoreCaps report={report} />
                 <p className="mt-3 text-xs text-slate-500">{SCORE_NOTE}</p>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Contact and identity</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {report.categoryScores.contact ?? "—"}
+                      {report.categoryScores.contact !== null && <span className="text-xs font-normal text-slate-500">/100</span>}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Resume content</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {report.categoryScores.content ?? "—"}
+                      {report.categoryScores.content !== null && <span className="text-xs font-normal text-slate-500">/100</span>}
+                    </p>
+                  </div>
+                </div>
                 <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
                   <div
                     className="h-full rounded-full bg-slate-900"
