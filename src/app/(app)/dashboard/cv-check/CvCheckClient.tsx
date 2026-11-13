@@ -4,6 +4,7 @@ import Link from "next/link";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import { analyzeResume, type AtsStatus } from "@/lib/ats";
@@ -16,6 +17,11 @@ const STATUS = {
   pass: { icon: CheckCircleIcon, className: "text-emerald-600", label: "Pass" },
   warn: { icon: WarningAmberIcon, className: "text-amber-600", label: "Improve" },
   fail: { icon: CancelIcon, className: "text-red-600", label: "Fix" },
+  not_assessed: {
+    icon: InfoOutlinedIcon,
+    className: "text-slate-500",
+    label: "Not assessed",
+  },
 } satisfies Record<
   AtsStatus,
   { icon: typeof CheckCircleIcon; className: string; label: string }
