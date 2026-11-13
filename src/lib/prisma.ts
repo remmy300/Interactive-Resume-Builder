@@ -7,7 +7,10 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    // Query and error logs can contain failing query arguments, including
+    // resume and cover-letter text. `withApiHandler` logs a sanitised
+    // reference instead. Enable "query" only locally, with fake data.
+    log: ["warn"],
   });
 
 if (process.env.NODE_ENV !== "production") {

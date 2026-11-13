@@ -5,7 +5,6 @@ import {
   mergeSkillList,
   skillItems,
   suggestSkillsField,
-  type JobKeyword,
 } from "./ats";
 import { formatLink, normalizeLinkUrl } from "./letter-links";
 import type { ResumeData, Skills } from "./resume-schema";
@@ -208,7 +207,6 @@ export interface BulletSuggestion {
   original: string;
   suggested: string;
   reasons: string[];
-  missingKeywords: string[];
 }
 
 const WEAK_OPENINGS: Array<[RegExp, string, string]> = [
@@ -260,12 +258,10 @@ function polishBullet(bullet: string): { text: string; reasons: string[] } {
  */
 export function suggestBulletImprovements(
   data: ResumeData,
-  keywords: JobKeyword[],
   limit = 12,
 ): BulletSuggestion[] {
-  const { missing } = matchKeywords(data, keywords);
-  const hints = missing.slice(0, 3);
   const suggestions: BulletSuggestion[] = [];
+  const seen = new Set<string>();
 
   for (const entry of data.experience) {
     const lines = entry.description
@@ -275,6 +271,10 @@ export function suggestBulletImprovements(
     const entryLabel = [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
 
     for (const original of lines) {
+      const dedupeKey = `${entry.id}:${original.toLowerCase()}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
       const { text, reasons } = polishBullet(original);
       if (reasons.length === 0) continue;
       suggestions.push({
@@ -284,7 +284,6 @@ export function suggestBulletImprovements(
         original,
         suggested: text,
         reasons,
-        missingKeywords: hints,
       });
       if (suggestions.length >= limit) return suggestions;
     }

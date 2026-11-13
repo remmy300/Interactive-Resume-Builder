@@ -13,6 +13,7 @@ import {
   type LinkRef,
 } from "@/lib/import-links";
 import { parseResumeText } from "@/lib/resume-import";
+import { logServerError } from "@/lib/server-log";
 
 export const runtime = "nodejs";
 
@@ -152,7 +153,7 @@ export const POST = withApiHandler(async (request) => {
     }
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    console.error("CV import failed", error);
+    logServerError("cv-import", error);
     throw new HttpError(
       422,
       "We could not read that file. If it is a scanned PDF, export a text-based PDF and try again.",

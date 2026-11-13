@@ -260,7 +260,7 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Keyword match
+                        Weighted requirement match
                       </p>
                       <p className={`text-3xl font-bold ${scoreTone(match.score).text}`}>
                         {match.score}
@@ -270,9 +270,13 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
                       </p>
                     </div>
                     <p className="text-sm text-slate-600">
-                      {match.matched.length} of {keywords.length} keywords covered
+                      {match.matched.length} of {keywords.length} requirements covered
                     </p>
                   </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Weighted by must-have wording, repetition, and specificity.
+                    Benefits, company names, and ordinary prose are ignored.
+                  </p>
                   <LinearProgress
                     variant="determinate"
                     value={match.score}

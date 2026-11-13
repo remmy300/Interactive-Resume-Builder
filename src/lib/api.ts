@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { logServerError } from "@/lib/server-log";
 
 export class HttpError extends Error {
   constructor(
@@ -88,8 +89,10 @@ export function withApiHandler<Context>(
           return errorResponse(409, "That value is already in use.");
         }
       }
-      console.error("API route failed", error);
-      return errorResponse(500, "Something went wrong. Please try again.");
+      const reference = logServerError("api", error);
+      return errorResponse(500, "Something went wrong. Please try again.", {
+        reference,
+      });
     }
   };
 }

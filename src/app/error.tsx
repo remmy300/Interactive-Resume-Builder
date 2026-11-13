@@ -10,7 +10,11 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    // Keep browser logs free of resume or job-description content.
+    console.error("Unhandled UI error", {
+      name: error.name,
+      digest: error.digest,
+    });
   }, [error]);
 
   return (

@@ -127,6 +127,79 @@ describe("extractKeywords", () => {
   it("returns an empty list for empty text", () => {
     expect(extractKeywords("")).toEqual([]);
   });
+
+  it("ignores company names, locations, and ordinary prose", () => {
+    const keywords = extractKeywords(`
+About Northwind Labs
+Northwind Labs is a fast-growing company building tools for modern teams in London.
+Requirements
+- 5+ years of experience with React and TypeScript
+- Strong communication and problem-solving skills
+- Experience with AWS and Docker
+Benefits
+- Competitive salary, health insurance, and a great culture
+`);
+    const terms = keywords.map((keyword) => keyword.term);
+    expect(terms).toContain("react");
+    expect(terms).toContain("typescript");
+    expect(terms).toContain("aws");
+    expect(terms).toContain("docker");
+    expect(terms).not.toContain("northwind");
+    expect(terms).not.toContain("labs");
+    expect(terms).not.toContain("company");
+    expect(terms).not.toContain("teams");
+    expect(terms).not.toContain("london");
+    expect(terms).not.toContain("salary");
+    expect(terms).not.toContain("insurance");
+    expect(terms).not.toContain("culture");
+    expect(terms).not.toContain("communication");
+    expect(terms).not.toContain("problem");
+  });
+
+  it("normalises common skill aliases and multi-word terms", () => {
+    const terms = extractKeywords(
+      "Node.js, PostgreSQL, CI/CD, REST APIs, K8s, and unit testing",
+    ).map((keyword) => keyword.term);
+    expect(terms).toContain("node.js");
+    expect(terms).toContain("postgresql");
+    expect(terms).toContain("ci cd");
+    expect(terms).toContain("rest api");
+    expect(terms).toContain("kubernetes");
+    expect(terms).toContain("unit testing");
+  });
+
+  it("keeps specific skill labels instead of broad aliases", () => {
+    const displays = extractKeywords(
+      "PostgreSQL, unit testing, IAM, Node.js, iOS, and AWS",
+    ).map((keyword) => keyword.display);
+    expect(displays).toContain("PostgreSQL");
+    expect(displays).toContain("Unit Testing");
+    expect(displays).toContain("Identity and Access Management");
+    expect(displays).toContain("Node.js");
+    expect(displays).toContain("iOS");
+    expect(displays).toContain("AWS");
+    expect(displays).not.toContain("SQL");
+    expect(displays).not.toContain("Backend");
+    expect(displays).not.toContain("Mobile Development");
+  });
+
+  it("keeps requirement wording when a benefit phrase appears in the same line", () => {
+    const terms = extractKeywords(
+      "Requirements: experience with health insurance systems and React.",
+    ).map((keyword) => keyword.term);
+    expect(terms).toContain("react");
+  });
+
+  it("does not treat a company name as a technical keyword", () => {
+    const keywords = extractKeywords(
+      "At Acme Corp, you will use Kubernetes and Terraform.",
+    );
+    const terms = keywords.map((keyword) => keyword.term);
+    expect(terms).toContain("kubernetes");
+    expect(terms).toContain("terraform");
+    expect(terms).not.toContain("acme");
+    expect(terms).not.toContain("corp");
+  });
 });
 
 describe("matchKeywords", () => {
@@ -137,6 +210,37 @@ describe("matchKeywords", () => {
     expect(result.matched.map((term) => term.toLowerCase())).toContain("typescript");
     expect(result.missing.map((term) => term.toLowerCase())).toContain("kubernetes");
     expect(result.score).toBeGreaterThan(0);
+  });
+
+  it("weights requirements instead of counting every word in the posting", () => {
+    const keywords = extractKeywords(`
+Requirements: React, TypeScript, Kubernetes, AWS.
+Benefits: competitive salary and health insurance.
+`);
+    const result = matchKeywords(completeResume(), keywords);
+
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.score).toBeLessThan(100);
+    expect(result.missing.join(" ")).toMatch(/Kubernetes/);
+    expect(result.missing.join(" ")).not.toMatch(/salary|insurance|benefits/i);
+  });
+
+  it("treats a specific database as SQL experience", () => {
+    const data = createEmptyResume();
+    data.skills.databases = "PostgreSQL";
+    expect(matchKeywords(data, extractKeywords("SQL")).matched).toContain("SQL");
+  });
+
+  it("recommends known skills, not company names or filler words", () => {
+    const result = matchKeywords(
+      completeResume(),
+      extractKeywords(
+        "At Northwind Labs we are looking for a developer with Kubernetes and Terraform experience.",
+      ),
+    );
+    expect(result.missing).toContain("Kubernetes");
+    expect(result.missing).toContain("Terraform");
+    expect(result.missing.join(" ")).not.toMatch(/northwind|labs|developer|looking/i);
   });
 });
 

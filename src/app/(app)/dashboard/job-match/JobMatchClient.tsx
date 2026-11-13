@@ -47,8 +47,8 @@ export function JobMatchClient() {
     [data, keywords],
   );
   const suggestions = useMemo(
-    () => (data ? suggestBulletImprovements(data, keywords) : []),
-    [data, keywords],
+    () => (data ? suggestBulletImprovements(data) : []),
+    [data],
   );
 
   const save = async (next: ResumeData, message: string) => {
@@ -205,7 +205,7 @@ export function JobMatchClient() {
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Keyword match
+                      Weighted requirement match
                     </p>
                     <p className="mt-1 text-4xl font-bold text-slate-900">
                       {match.score}
@@ -213,9 +213,13 @@ export function JobMatchClient() {
                     </p>
                   </div>
                   <p className="text-sm text-slate-600">
-                    {match.matched.length} of {keywords.length} keywords covered
+                    {match.matched.length} of {keywords.length} requirements covered
                   </p>
                 </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Weighted by must-have wording, repetition, and how specific each
+                  requirement is. Benefits, company names, and ordinary prose are ignored.
+                </p>
                 <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
                   <div
                     className="h-full rounded-full bg-slate-900"
@@ -301,6 +305,18 @@ export function JobMatchClient() {
                   Rewrites use your own wording. Add real metrics where prompted, and
                   edit any suggestion before applying it.
                 </p>
+                {match.missing.length > 0 && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Job requirements not yet in this resume:{" "}
+                    <span className="font-medium text-slate-700">
+                      {match.missing.slice(0, 6).join(", ")}
+                    </span>
+                    {match.missing.length > 6
+                      ? ` +${match.missing.length - 6} more`
+                      : ""}
+                    . Add only the ones you genuinely have.
+                  </p>
+                )}
 
                 {suggestions.length === 0 ? (
                   <p className="mt-3 text-sm text-emerald-700">
@@ -358,15 +374,6 @@ export function JobMatchClient() {
                                 <li key={reason}>{reason}</li>
                               ))}
                             </ul>
-                            {suggestion.missingKeywords.length > 0 && (
-                              <p className="mt-1.5 text-xs text-slate-500">
-                                If you used them in this role, consider mentioning:{" "}
-                                <span className="font-medium text-slate-700">
-                                  {suggestion.missingKeywords.join(", ")}
-                                </span>
-                                .
-                              </p>
-                            )}
                           </div>
                         </div>
                       </div>

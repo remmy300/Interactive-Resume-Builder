@@ -8,7 +8,6 @@ import {
   generateCoverLetter,
   suggestBulletImprovements,
 } from "./career";
-import { extractKeywords } from "./ats";
 import { createEmptyResume, type ResumeData } from "./resume-schema";
 
 function sampleResume(): ResumeData {
@@ -49,10 +48,7 @@ function sampleResume(): ResumeData {
 
 describe("suggestBulletImprovements", () => {
   it("rewrites weak openings and asks for a measurable result", () => {
-    const suggestions = suggestBulletImprovements(
-      sampleResume(),
-      extractKeywords("React TypeScript AWS"),
-    );
+    const suggestions = suggestBulletImprovements(sampleResume());
     const suggestion = suggestions.find((item) =>
       item.original.startsWith("Responsible"),
     );
@@ -63,7 +59,7 @@ describe("suggestBulletImprovements", () => {
   });
 
   it("does not suggest changes for strong, quantified bullets", () => {
-    const suggestions = suggestBulletImprovements(sampleResume(), []);
+    const suggestions = suggestBulletImprovements(sampleResume());
     expect(
       suggestions.some((item) => item.original.startsWith("Reduced load time")),
     ).toBe(false);

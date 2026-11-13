@@ -171,6 +171,9 @@ function splitSectionBlocks(lines: string[]): string[][] {
       if (candidate <= 0) break;
       const line = lines[candidate];
       if (!line || /^\s*[-•*▪◦●]/.test(line) || DATE_RANGE_PATTERN.test(line)) break;
+      // Only a short title line ("Company", "Role") belongs to the dates below it.
+      // A finished sentence is the last bullet of the previous entry.
+      if (!looksLikeHeaderLine(line)) break;
       start = candidate;
     }
     starts.add(start);
@@ -194,7 +197,18 @@ const STACK_LABEL = /^(technologies|tech(?:nology)? stack|stack|built with|tools
 
 /** A technology list such as "React · Node.js · PostgreSQL" or "Technologies: …". */
 const isStackLine = (line: string) =>
-  (line.match(/\s[·|•]\s/g) ?? []).length >= 2 || STACK_LABEL.test(line.trim());
+  // "Title | Live Demo: x | GitHub: y" has bars too, but it is a project header.
+  ((line.match(/\s[·|•]\s/g) ?? []).length >= 2 && !LINK_FIELD.test(line)) ||
+  STACK_LABEL.test(line.trim());
+
+/** "Live Demo: [link]" / "GitHub: https://…" fields inside a project header. */
+const LINK_FIELD = /\b(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)\s*:/i;
+
+/** A bare technology list without a label: "Next.js, React, TypeScript, Docker". */
+const isCommaStack = (line: string) =>
+  (line.match(/,/g) ?? []).length >= 3 &&
+  !endsSentence(line) &&
+  !ACTION_VERBS.has(firstWord(line));
 
 const LINK_WORD =
   "(?:live\\s+)?demo|github|gitlab|source(?:\\s+code)?|code|repo(?:sitory)?|link|website|live\\s+site|case\\s+study|portfolio";
@@ -222,7 +236,14 @@ function isContinuation(prev: string, next: string): boolean {
   if (BULLET_START.test(next) || DATE_RANGE_PATTERN.test(next)) return false;
   if (isStackLine(prev) || isStackLine(next)) return false;
   if (endsSentence(prev)) return false;
+  // A header ending in a placeholder ("GitHub: [link]") is complete.
+  if (/\[[^\]]*\]$/.test(prev.trim())) return false;
   if (/,$/.test(prev) || TRAILING_CONNECTOR.test(prev)) return true;
+  // A capitalised line that opens with an action verb ("Built cart, checkout…")
+  // starts a new bullet, even if the line above has no full stop (a tech stack).
+  if (/^[A-Z]/.test(next) && next.split(/\s+/).length >= 4 && ACTION_VERBS.has(firstWord(next))) {
+    return false;
+  }
   // A short line followed by a lowercase one is usually two fields ("Eldorado" /
   // "high school graduate"), not a wrapped sentence.
   if (/^[a-z(]/.test(next)) return prev.length >= 45;
@@ -295,7 +316,8 @@ function restoreIndentedBullets(text: string): string {
 /** Short, title-like line that is not a sentence and does not start with a verb. */
 function looksLikeTitle(line: string): boolean {
   if (BULLET_START.test(line) || endsSentence(line) || isStackLine(line)) return false;
-  if (line.length > 90 || !/^[A-Z0-9]/.test(line)) return false;
+  const limit = LINK_FIELD.test(line) ? 260 : 90;
+  if (line.length > limit || !/^[A-Z0-9]/.test(line)) return false;
   const words = line.split(/\s+/).length;
   return !(words >= 4 && ACTION_VERBS.has(firstWord(line)));
 }
@@ -334,7 +356,10 @@ function splitTitleBlocks(lines: string[]): string[][] {
 
 /** Header-like: dates, or a short non-sentence line that is not an achievement. */
 function looksLikeHeaderLine(line: string): boolean {
-  if (BULLET_START.test(line) || line.length > 100) return false;
+  // A project header with its stack on the same line ("Title | Live Demo: x | …")
+  // is longer than a plain title but is still a header.
+  const limit = LINK_FIELD.test(line) ? 260 : 100;
+  if (BULLET_START.test(line) || line.length > limit) return false;
   if (DATE_RANGE_PATTERN.test(line)) return true;
   if (endsSentence(line)) return false;
   const words = line.split(/\s+/).length;
@@ -373,12 +398,26 @@ function parseExperienceBlock(block: string[]): ExperienceEntry | null {
   const dates = parseDates(joined);
   if (headers.length === 0) return null;
 
-  const parts = headers.flatMap(splitHeaderLine);
-  const headerWithoutDates = parts.filter(
-    (part) => !DATE_RANGE_PATTERN.test(part) && !SINGLE_DATE_PATTERN.test(part),
-  );
-  const primary = headerWithoutDates[0] ?? "";
-  const secondary = headerWithoutDates[1] ?? "";
+  // Company and role come from the first header lines. Anything after them
+  // ("Team of 10 developers: 4 frontend, 6 backend") is kept as description
+  // instead of being thrown away.
+  const picked: string[] = [];
+  let consumed = 0;
+  for (const header of headers) {
+    if (picked.length >= 2) break;
+    consumed += 1;
+    for (const part of splitHeaderLine(header)) {
+      if (picked.length < 2 && !DATE_RANGE_PATTERN.test(part) && !SINGLE_DATE_PATTERN.test(part)) {
+        picked.push(part);
+      }
+    }
+  }
+  const leftoverHeaders = headers
+    .slice(consumed)
+    .filter((line) => hasText(splitHeaderLine(line).join("")));
+  details.unshift(...leftoverHeaders);
+  const primary = picked[0] ?? "";
+  const secondary = picked[1] ?? "";
 
   let company = "";
   let role = "";
@@ -408,7 +447,15 @@ function parseExperienceBlock(block: string[]): ExperienceEntry | null {
 }
 
 function parseEducationBlock(block: string[]): EducationEntry | null {
-  const { headers } = headerLines(block);
+  let { headers } = headerLines(block);
+  if (headers.length === 0) {
+    // Everything on one long line ("Certificate | School | Year Notes…"): read the
+    // first sentence as the header, but only if it really names a school or award.
+    const firstSentence = (block[0] ?? "").split(/\.\s/)[0].slice(0, 220);
+    if (SCHOOL_WORDS.test(firstSentence) || DEGREE_WORDS.test(firstSentence)) {
+      headers = [firstSentence];
+    }
+  }
   const parts = headers.flatMap(splitHeaderLine);
   const filtered = parts.filter(
     (part) => !DATE_RANGE_PATTERN.test(part) && !SINGLE_DATE_PATTERN.test(part),
@@ -444,8 +491,23 @@ function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry |
   const { headers, details } = headerLines(block);
   // Project titles can legitimately contain dashes ("FlowDesk — Project
   // Management Platform"), so only a bar or dot starts trailing detail.
-  const title = (headers[0] ?? "").replace(/\s*[|·•].*$/, "").trim();
+  const firstHeader = headers[0] ?? "";
+  const title = firstHeader.replace(/\s*[|·•].*$/, "").trim();
   if (!hasText(title)) return null;
+
+  // "Title | Live Demo: [link] | GitHub: [link] Next.js, React, …": after the
+  // title come the link fields, then (when it fits on the same line) the stack.
+  const inlineStack = firstHeader
+    .slice(firstHeader.indexOf(title) + title.length)
+    .replace(
+      /\b(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)\s*:\s*(?:\[[^\]]*\]|https?:\/\/\S+|\S+)/gi,
+      " ",
+    )
+    .replace(/[|·•]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const stackFromHeader =
+    (inlineStack.match(/,/g) ?? []).length >= 1 ? [`Tech stack: ${inlineStack}`] : [];
   // The live demo and the repository are different addresses: a GitHub link goes
   // to its own field instead of overwriting the demo link.
   const { link, github } = classifyProjectLinks([
@@ -455,14 +517,14 @@ function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry |
   const extra = headers
     .slice(1)
     .map((line) =>
-      isStackLine(line)
+      isStackLine(line) || isCommaStack(line)
         ? `Tech stack: ${line.replace(STACK_LABEL, "").trim()}`
         : line,
     );
   return {
     id: createId(),
     title,
-    description: [...extra, ...details].join("\n").slice(0, 5000),
+    description: [...stackFromHeader, ...extra, ...details].join("\n").slice(0, 5000),
     link,
     github,
   };
@@ -631,15 +693,46 @@ function significantHeaderLines(lines: string[]): string[] {
  * format. Imported data is always shown to the user for review before it is
  * saved as a new resume.
  */
+/**
+ * Cleans layout noise out of extracted text before it is parsed:
+ * - "Page 1 of 2" footers and the running header that repeats the name on every
+ *   page, which otherwise end up inside whichever section they interrupt;
+ * - the blank line Word leaves between every paragraph, which would make each
+ *   bullet look like its own entry.
+ */
+function prepareText(text: string): string {
+  const lines = text.split("\n");
+  const firstLine = lines.find(hasText)?.trim().toLowerCase();
+  let seenFirst = false;
+  const kept = lines.filter((line) => {
+    const value = line.trim();
+    if (/^page\s+\d+(\s+of\s+\d+)?$/i.test(value)) return false;
+    if (firstLine && value.toLowerCase() === firstLine) {
+      if (seenFirst) return false;
+      seenFirst = true;
+    }
+    return true;
+  });
+
+  const filled = kept.filter(hasText).length;
+  const touching = kept.filter(
+    (line, index) => hasText(line) && hasText(kept[index + 1] ?? ""),
+  ).length;
+  const doubleSpaced = filled >= 8 && touching < filled * 0.25;
+  return (doubleSpaced ? kept.filter(hasText) : kept).join("\n");
+}
+
 export function parseResumeText(
   rawText: string,
   extraLinks: Array<string | LinkRef> = [],
 ): ImportResult {
   // Bullet glyphs from symbol fonts arrive as invisible private-use characters.
-  const text = rawText
-    .replace(/[\ue000-\uf8ff\u200b-\u200d\ufeff]/g, "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\r\n?/g, "\n");
+  const text = prepareText(
+    rawText
+      .replace(/[\ue000-\uf8ff\u200b-\u200d\ufeff]/g, "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\r\n?/g, "\n"),
+  );
   const warnings: string[] = [];
   const resume = createEmptyResume();
   resume.education = [];
@@ -697,14 +790,33 @@ export function parseResumeText(
     if (linkedIn) resume.personal.linkedIn = linkedIn.replace(/[),.;]+$/, "");
   }
 
-  const nonEmpty = rawLines.filter(hasText);
-  const header = significantHeaderLines(nonEmpty.slice(0, 12));
+  // Name and headline come from above the first section heading, so a CV with no
+  // headline cannot mistake its summary for one.
+  const header = significantHeaderLines(
+    rawLines.slice(0, headerEnd).filter(hasText).slice(0, 12),
+  );
   if (header[0] && /^[A-Za-z][A-Za-z .'-]{1,59}$/.test(header[0])) {
     resume.personal.name = header[0];
   }
-  if (header[1] && header[1].length <= 80 && !EMAIL_PATTERN.test(header[1])) {
+  // A headline can be long ("Junior Software Developer | React | TypeScript | …").
+  if (header[1] && header[1].length <= 140 && !EMAIL_PATTERN.test(header[1])) {
     resume.personal.title = stripTrailingDetail(header[1]);
   }
+
+  // Location usually shares a line with the contact details:
+  // "Nairobi, Kenya | +254… | name@mail.com | github.com/name".
+  const contactSegments = rawLines
+    .slice(0, headerEnd)
+    .flatMap((line) => line.split(/\s*[|·•]\s*/))
+    .map((segment) => segment.trim());
+  const place = contactSegments.find(
+    (segment) =>
+      /^[A-Z][A-Za-z.' -]+,\s*[A-Z][A-Za-z.' -]+$/.test(segment) &&
+      segment.length <= 60 &&
+      !EMAIL_PATTERN.test(segment) &&
+      !ROLE_WORDS.test(segment),
+  );
+  if (place) resume.personal.location = place;
 
   const sections: Record<SectionKey, string[]> = {
     summary: [],
