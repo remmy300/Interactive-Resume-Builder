@@ -72,7 +72,7 @@ describe("analyzeResume", () => {
   it("scores a complete, quantified resume highly", () => {
     const report = analyzeResume(completeResume());
     expect(report.score).toBeGreaterThanOrEqual(85);
-    expect(report.checks.find((check) => check.id === "format")?.status).toBe("warn");
+    expect(report.checks.find((check) => check.id === "format")?.status).toBe("not_assessed");
     expect(report.checks.find((check) => check.id === "format")?.weight).toBe(0);
     expect(report.checks.find((check) => check.id === "numbers")?.status).toBe(
       "pass",
