@@ -71,7 +71,8 @@ describe("analyzeResume", () => {
   it("scores a complete, quantified resume highly", () => {
     const report = analyzeResume(completeResume());
     expect(report.score).toBeGreaterThanOrEqual(85);
-    expect(report.checks.find((check) => check.id === "format")?.status).toBe("pass");
+    expect(report.checks.find((check) => check.id === "format")?.status).toBe("warn");
+    expect(report.checks.find((check) => check.id === "format")?.weight).toBe(0);
     expect(report.checks.find((check) => check.id === "numbers")?.status).toBe(
       "pass",
     );
@@ -277,16 +278,16 @@ describe("analyzeResume honesty", () => {
     return data;
   }
 
-  it("does not let a vague resume score well", () => {
+  it("flags vague wording without applying an arbitrary score cap", () => {
     const report = analyzeResume(vagueResume());
-    expect(report.score).toBeLessThan(70);
-    expect(report.caps.length).toBeGreaterThan(0);
-    expect(report.rawScore).toBeGreaterThan(report.score);
+    expect(report.checks.find((check) => check.id === "weak-phrases")?.status).toBe("warn");
+    expect(report.caps).toEqual([]);
+    expect(report.rawScore).toBe(report.score);
   });
 
   it("flags vague phrases and buzzwords with examples", () => {
     const data = vagueResume();
-    expect(find(data, "weak-phrases")?.status).toBe("fail");
+    expect(find(data, "weak-phrases")?.status).toBe("warn");
     expect(find(data, "weak-phrases")?.examples?.length).toBeGreaterThan(0);
     expect(find(data, "cliches")?.status).not.toBe("pass");
   });
@@ -298,10 +299,10 @@ describe("analyzeResume honesty", () => {
       "Led the redesign in 2022",
       "Shipped the app in 2021",
     ].join("\n");
-    expect(find(data, "numbers")?.status).toBe("fail");
+    expect(find(data, "numbers")?.status).toBe("warn");
   });
 
-  it("flags end dates before start dates and long gaps", () => {
+  it("flags reversed dates but does not penalize employment gaps", () => {
     const data = completeResume();
     data.experience.push({
       id: "e2",
@@ -325,12 +326,69 @@ describe("analyzeResume honesty", () => {
       endDate: "2020-01",
       current: false,
     });
-    expect(find(gap, "dates")?.status).toBe("warn");
+    expect(find(gap, "dates")?.status).toBe("pass");
   });
 
   it("flags listed skills that the experience never shows", () => {
     const data = completeResume();
     data.skills.technologies = "Kubernetes, Terraform, Ansible, Go, Rust";
     expect(find(data, "skills-evidence")?.status).not.toBe("pass");
+  });
+});
+
+
+describe("general assessment regression coverage", () => {
+  it("does not judge email professionalism by digits in the address", () => {
+    const data = completeResume();
+    data.personal.email = "ada123456@example.com";
+    const report = analyzeResume(data);
+    expect(report.checks.some((check) => check.id === "email-tone")).toBe(false);
+    expect(report.checks.find((check) => check.id === "email")?.status).toBe("pass");
+  });
+
+  it("does not count employment overlap twice", () => {
+    const data = completeResume();
+    data.experience = [
+      {
+        id: "overlap-a",
+        company: "Company A",
+        role: "Developer",
+        description: "Built services.",
+        startDate: "2020-01",
+        endDate: "2022-01",
+        current: false,
+      },
+      {
+        id: "overlap-b",
+        company: "Company B",
+        role: "Consultant",
+        description: "Delivered integrations.",
+        startDate: "2021-01",
+        endDate: "2023-01",
+        current: false,
+      },
+    ];
+    expect(experienceYears(data, new Date("2024-01-01T00:00:00Z"))).toBeCloseTo(3.08, 1);
+  });
+
+  it("recognizes common technology aliases in skills evidence", () => {
+    const data = completeResume();
+    data.skills.languages = "";
+    data.skills.technologies = "React, Node.js, PostgreSQL, JavaScript, Next.js, TypeScript";
+    data.skills.databases = "";
+    data.summary = "Uses React.js, Node, Postgres, JS, Next JS and TS.";
+    expect(analyzeResume(data).checks.find((check) => check.id === "skills-evidence")?.status).toBe("pass");
+  });
+
+  it("does not make the absence of metrics a hard failure", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "Implemented OAuth authentication using Clerk.",
+      "Built reusable React components for the dashboard.",
+      "Fixed a session persistence bug after page refresh.",
+    ].join("\\n");
+    const report = analyzeResume(data);
+    expect(report.checks.find((check) => check.id === "numbers")?.status).toBe("warn");
+    expect(report.caps).toEqual([]);
   });
 });
