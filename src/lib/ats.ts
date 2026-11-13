@@ -13,7 +13,7 @@ export {
   type KeywordMatch,
 } from "./ats-keywords";
 
-export type AtsStatus = "pass" | "warn" | "fail";
+export type AtsStatus = "pass" | "warn" | "fail" | "not_assessed";
 export type AtsGroup = "contact" | "content" | "format";
 
 export interface AtsCheck {
@@ -301,7 +301,7 @@ export function analyzeResume(data: ResumeData): AtsReport {
   add(
     "format",
     "Document compatibility",
-    "warn",
+    "not_assessed",
     "This check cannot be verified from resume data alone. Upload the exported PDF or DOCX for text extraction and reading-order tests.",
     0,
     "format",
