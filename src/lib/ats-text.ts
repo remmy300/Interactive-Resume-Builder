@@ -49,10 +49,17 @@ export function resumeText(data: ResumeData): string {
   return parts.filter(hasText).join("\n");
 }
 
+/**
+ * Project entries often include a "Tech stack: …" line. That is context, not an
+ * achievement, so it should not count as a bullet or be judged like one.
+ */
+const CONTEXT_LABEL =
+  /^(?:tech(?:nology)? stack|technologies|stack|tools|built with)\s*:/i;
+
 /** Achievement bullets exactly as they appear in the document. */
 export function resumeBullets(data: ResumeData): string[] {
   return [...data.experience, ...data.projects]
     .flatMap((entry) => entry.description.split("\n"))
     .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
-    .filter(Boolean);
+    .filter((line) => Boolean(line) && !CONTEXT_LABEL.test(line));
 }

@@ -238,14 +238,11 @@ function polishBullet(bullet: string): { text: string; reasons: string[] } {
   }
 
   text = text.replace(/\s+/g, " ").trim();
-  if (text && !/[.!?]$/.test(text)) {
-    text = `${text}.`;
-  }
-
-  if (!/\d/.test(text)) {
+  // Only suggest a rewrite when the wording really changed, and never insert
+  // bracketed placeholder text: it would end up in the saved resume. Metrics are
+  // a bonus, not a requirement, so a bullet without a number is left alone.
+  if (/[.!?]$/.test(bullet.trim()) === false) {
     text = text.replace(/[.]+$/, "");
-    text = `${text}, [add a measurable result: %, time saved, users, or revenue].`;
-    reasons.push("Add a measurable outcome to make the impact concrete.");
   }
 
   return { text, reasons };

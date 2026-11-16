@@ -47,15 +47,21 @@ function sampleResume(): ResumeData {
 }
 
 describe("suggestBulletImprovements", () => {
-  it("rewrites weak openings and asks for a measurable result", () => {
+  it("rewrites weak openings without inserting placeholder text", () => {
     const suggestions = suggestBulletImprovements(sampleResume());
     const suggestion = suggestions.find((item) =>
       item.original.startsWith("Responsible"),
     );
     expect(suggestion).toBeDefined();
     expect(suggestion?.suggested.startsWith("Owned ")).toBe(true);
-    expect(suggestion?.suggested).toContain("[add a measurable result");
+    expect(suggestion?.suggested).not.toMatch(/[[\]]/);
     expect(suggestion?.reasons.length).toBeGreaterThan(0);
+  });
+
+  it("never suggests a bullet just because it has no number", () => {
+    const data = sampleResume();
+    data.experience[0].description = "Built sign-up and login pages in React and TypeScript.";
+    expect(suggestBulletImprovements(data)).toEqual([]);
   });
 
   it("does not suggest changes for strong, quantified bullets", () => {

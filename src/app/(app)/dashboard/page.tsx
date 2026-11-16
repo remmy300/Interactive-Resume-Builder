@@ -157,7 +157,7 @@ export default async function DashboardPage() {
           {report ? (
             <div className="mt-4">
               <div className="flex items-end justify-between gap-3">
-                <p className="text-sm text-slate-600">ATS readiness</p>
+                <p className="text-sm text-slate-600">Resume quality</p>
                 <p className="text-2xl font-bold text-slate-900">
                   {report.score}
                   <span className="text-sm font-medium text-slate-500">/100</span>
@@ -170,8 +170,8 @@ export default async function DashboardPage() {
                 />
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                {report.passed} checks pass · {report.warnings} to polish ·{" "}
-                {report.failed} to fix
+                {report.passed} passing · {report.warnings} to improve ·{" "}
+                {report.failed} to fix · internal assessment, not an ATS prediction
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link

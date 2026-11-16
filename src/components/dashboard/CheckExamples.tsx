@@ -17,13 +17,16 @@ export function CheckExamples({ examples }: { examples?: string[] }) {
   );
 }
 
-/** Explains why the score is lower than the raw check results suggest. */
+/** Explains genuine blockers that hold the score below the weighted result. */
 export function ScoreCaps({ report }: { report: AtsReport }) {
   if (report.caps.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
       <p className="font-semibold">
-        Score held at {report.score} (checks alone would give {report.rawScore})
+        Critical blocker: score held at {report.score}
+        {report.rawScore !== report.score
+          ? ` (weighted checks alone would give ${report.rawScore})`
+          : ""}
       </p>
       <ul className="mt-1 list-disc pl-4">
         {report.caps.map((reason) => (
@@ -35,4 +38,4 @@ export function ScoreCaps({ report }: { report: AtsReport }) {
 }
 
 export const SCORE_NOTE =
-  "This is an honest heuristic review, not a real ATS score. No ATS publishes one. It checks what recruiters and parsers react to: clear contact details, specific results, consistent dates and claims you can back up.";
+  "This is an internal resume-quality assessment, not an ATS pass prediction. No ATS publishes a score. It reviews structure, evidence, clarity, and document compatibility. Metrics are a bonus, not a requirement: implemented features, integrations, performance improvements, and other technical evidence count as impact.";

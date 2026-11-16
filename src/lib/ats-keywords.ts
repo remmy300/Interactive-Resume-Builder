@@ -203,7 +203,7 @@ const SECTION_HEADING =
   /^(?:requirements?|basic qualifications?|minimum qualifications?|preferred qualifications?|must[- ]haves?|what you(?:'|’)ll need|what you need|what we(?:'|’)re looking for|who we(?:'|’)re looking for|who you are|about you|your (?:experience|skills|background)|skills? (?:and|&) experience|experience (?:and|&) skills|experience|education|responsibilities|your responsibilities|what you(?:'|’)ll do|the role|about the role|in this role|day[- ]to[- ]day|duties|nice[- ]to[- ]have|bonus points|benefits?|perks?|compensation|what we offer|why join|about (?:us|the company)|our (?:mission|values|culture)|how to apply)\s*:?$/i;
 
 const EXCLUDE_CUES =
-  /\b(benefits?|perks?|compensation|salary|health insurance|dental insurance|vision insurance|life insurance|insurance benefits|vacation|paid time off|pto|401k|retirement|stock options|equity compensation|equity grant|parental leave|equal opportunity|eoe|diversity|inclusion|accommodation|accommodations|disability|veteran|veterans|background check|drug test|work authorization|authorized to work|right to work|visa sponsorship|no agencies|recruiters?|how to apply|apply now|about us|about the company|our mission|our values|our culture|why join|what we offer|we offer)\b/i;
+  /\b(benefits?|perks?|compensation|salary|health insurance|dental insurance|vision insurance|life insurance|insurance benefits|vacation|paid time off|pto|401k|retirement|stock options|equity compensation|equity grant|parental leave|equal opportunity|eoe|diversity|inclusion|accommodation|accommodations|disability|veteran|veterans|background check|drug test|work authorization|authorized to work|right to work|visa sponsorship|visas?|sponsor(?:s|ed|ing|ship)?|no agencies|recruiters?|how to apply|apply now|about us|about the company|our mission|our values|our culture|why join|what we offer|we offer)\b/i;
 
 const REQUIREMENT_CUES =
   /\b(required|requires?|needs?|requirements?|must[- ]have|proficien\w*|experience|knowledge of|familiarity with|hands[- ]on|qualifications?|what you(?:'|’)ll need|what you need|what we(?:'|’)re looking for|who we(?:'|’)re looking for|who you are|about you|you have|you bring|your experience|your skills|your background|looking for|hiring|skills?)\b/i;
@@ -219,8 +219,62 @@ const BENEFIT_START =
 
 const startsUppercase = (value: string) => /^[A-Z]/.test(value);
 
+/* -------------------------------------------------------------------------- */
+/*                       Postings written in another language                 */
+/* -------------------------------------------------------------------------- */
+
+// Common function words, enough to tell a German, French, Spanish, Portuguese or
+// Dutch posting from an English one. This is not translation: it only switches
+// the extractor to a stricter mode, because its English-only assumptions (word
+// lists, "capitalised means a name") produce fake skills in other languages.
+const ENGLISH_MARKERS = new Set([
+  "the", "and", "with", "for", "you", "our", "will", "are", "your", "we", "is",
+  "to", "of", "in", "have", "has", "that", "this", "experience", "team",
+]);
+const OTHER_LANGUAGE_MARKERS = new Set([
+  // German
+  "und", "der", "die", "das", "mit", "für", "nicht", "eine", "einen", "dem",
+  "den", "auch", "oder", "werden", "wir", "du", "ihr", "ist", "sind", "bei",
+  "von", "auf", "zu", "dich", "dir", "uns", "sehr", "als",
+  // French
+  "les", "des", "pour", "avec", "vous", "nous", "est", "une", "dans", "que", "qui",
+  // Spanish / Portuguese
+  "los", "las", "con", "para", "una", "por", "del", "não", "você", "nós",
+  // Dutch
+  "het", "een", "voor", "met", "niet", "zijn",
+]);
+
+export function looksNonEnglish(text: string): boolean {
+  const words = text.toLowerCase().match(/[a-zäöüßéèêàçñãõ]+/g) ?? [];
+  if (words.length < 25) return false;
+  let english = 0;
+  let other = 0;
+  for (const word of words) {
+    if (ENGLISH_MARKERS.has(word)) english += 1;
+    else if (OTHER_LANGUAGE_MARKERS.has(word)) other += 1;
+  }
+  return other >= 6 && other > english * 1.5;
+}
+
+// In German every noun is capitalised, so "Teams" (the plural of "Team") looks
+// exactly like Microsoft Teams. Only names that are never ordinary words are
+// trusted outside English.
+const NON_ENGLISH_SAFE_CASE_TERMS = new Set([
+  "react", "swift", "rust", "flask", "rails", "airflow", "databricks", "tableau",
+  "looker", "miro", "canva", "amplitude", "snowflake",
+]);
+
+/** Headings used by German postings, treated like their English counterparts. */
+const GERMAN_RESPONSIBILITIES = /^(?:deine |ihre )?aufgaben\s*:?$/i;
+const GERMAN_REQUIREMENTS =
+  /^(?:qualifikationen?|anforderungen|dein profil|ihr profil|das bringst du mit|was du mitbringst)\s*:?$/i;
+const GERMAN_BENEFITS =
+  /^(?:wir bieten|das bieten wir|was wir bieten|vorteile|unser angebot|deine vorteile)\s*:?$/i;
+
 function headingWeight(text: string): number {
-  if (BENEFIT_START.test(text)) return 0;
+  if (BENEFIT_START.test(text) || GERMAN_BENEFITS.test(text.trim())) return 0;
+  if (GERMAN_REQUIREMENTS.test(text.trim())) return REQUIREMENT_WEIGHT;
+  if (GERMAN_RESPONSIBILITIES.test(text.trim())) return RESPONSIBILITY_WEIGHT;
   if (/^(?:nice|preferred|bonus|plus|advantage)\b/i.test(text) && NICE_CUES.test(text)) {
     return NICE_WEIGHT;
   }
@@ -249,7 +303,14 @@ function cueWeight(text: string): number | null {
 }
 
 function isSectionHeading(text: string): boolean {
-  return text.length <= 90 && SECTION_HEADING.test(text.trim());
+  const value = text.trim();
+  return (
+    value.length <= 90 &&
+    (SECTION_HEADING.test(value) ||
+      GERMAN_RESPONSIBILITIES.test(value) ||
+      GERMAN_REQUIREMENTS.test(value) ||
+      GERMAN_BENEFITS.test(value))
+  );
 }
 
 /** A standalone job title is not a requirement ("Senior Frontend Engineer"). */
@@ -336,6 +397,8 @@ function detectCompanyTerms(text: string): Set<string> {
   const patterns = [
     /\b(?:at|join|joining|about|from)\s+([A-Z][A-Za-z0-9&.'’-]*(?:\s+[A-Z][A-Za-z0-9&.'’-]*){0,3})/g,
     /\b([A-Z][A-Za-z0-9&.'’-]*(?:\s+[A-Z][A-Za-z0-9&.'’-]*){0,3})\s+(?:is|are)\s+(?:a|an|the|hiring|looking|seeking|building|growing|on a mission)/g,
+    // "NotarPartner baut …", "Acme builds …": the subject of the opening sentence.
+    /(?:^|[.!?]\s+)([A-Z][A-Za-z0-9&'’-]+)\s+(?:builds?|baut|offers?|bietet|provides?|helps?|develops?|entwickelt|creates?|powers?|delivers?|operates?|sucht|stellt)\b/g,
     /^(?:company|employer|organization|organisation)\s*:\s*(.+)$/gim,
     /^about\s+([A-Z][A-Za-z0-9&.'’-]*(?:\s+[A-Z][A-Za-z0-9&.'’-]*){0,3})\s*$/gim,
   ];
@@ -404,6 +467,13 @@ function isKeywordWord(token: Token): boolean {
  */
 export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[] {
   const companyTerms = detectCompanyTerms(jobDescription);
+  const nonEnglish = looksNonEnglish(jobDescription);
+  // Ambiguous names (Teams, Go, Spring…) are only trusted when written in the
+  // usual casing, and not at all in a language that capitalises every noun.
+  const ambiguousName = (term: string, raw: string) =>
+    CASE_SENSITIVE_TERMS.has(term) &&
+    (!startsUppercase(raw) ||
+      (nonEnglish && !NON_ENGLISH_SAFE_CASE_TERMS.has(term)));
   const found = new Map<string, FoundKeyword>();
 
   const add = (term: string, display: string, weight: number) => {
@@ -419,6 +489,8 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
 
   let sectionWeight = DEFAULT_WEIGHT;
   let seenFirstLine = false;
+  const hasMoreLines =
+    jobDescription.split(/\r?\n/).filter((line) => line.trim()).length > 1;
 
   for (const line of jobDescription.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -426,7 +498,9 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
 
     if (!seenFirstLine) {
       seenFirstLine = true;
-      if (isJobTitleLine(trimmed)) continue;
+      // Only a title when other lines follow. A posting pasted as one line
+      // ("Frontend Developer. Requirements: React, Git") is all content.
+      if (hasMoreLines && isJobTitleLine(trimmed)) continue;
     }
 
     if (isSectionHeading(trimmed)) {
@@ -475,11 +549,7 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
             .trim();
           const definition = SKILL_LOOKUP.get(phrase);
           if (!definition) continue;
-          if (
-            size === 1 &&
-            CASE_SENSITIVE_TERMS.has(phrase) &&
-            !startsUppercase(slice[0].raw)
-          ) {
+          if (size === 1 && ambiguousName(phrase, slice[0].raw)) {
             continue;
           }
 
@@ -505,24 +575,27 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
 
         const definition = SKILL_LOOKUP.get(token.term);
         if (definition) {
-          if (
-            CASE_SENSITIVE_TERMS.has(token.term) &&
-            !startsUppercase(token.raw)
-          ) {
+          if (ambiguousName(token.term, token.raw)) {
             continue;
           }
           add(definition.term, definition.display, weight);
           continue;
         }
 
-        if (looksTechnical(token.raw, token.term)) {
+        // Outside English, a capitalised or upper-case word is usually a noun, a
+        // product name or an abbreviation of the posting's own. Trust only tokens
+        // with a digit or symbol (S3, C++, ES6) that are not language levels.
+        const technical = nonEnglish
+          ? /[0-9+#]/.test(token.term) && looksTechnical(token.raw, token.term)
+          : looksTechnical(token.raw, token.term);
+        if (technical) {
           add(token.term, token.raw, weight);
         }
       }
     }
   }
 
-  return [...found.entries()]
+  const ranked = [...found.entries()]
     .map(([term, value]) => ({
       term,
       display: value.display,
@@ -537,8 +610,195 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
         b.count - a.count ||
         b.term.length - a.term.length ||
         a.term.localeCompare(b.term),
+    );
+
+  // The general-word fallback relies on English word lists, so it would return
+  // ordinary words ("bereits", "Kanzleien") for a posting in another language.
+  if (ranked.length >= MIN_SKILL_KEYWORDS || nonEnglish) return ranked.slice(0, limit);
+
+  const general = collectGeneralKeywords(
+    jobDescription,
+    companyTerms,
+    new Set(ranked.map((keyword) => keyword.term)),
+    limit - ranked.length,
+  );
+  return [...ranked, ...general].slice(0, limit);
+}
+
+/* -------------------------------------------------------------------------- */
+/*              Keywords for postings that are not about software             */
+/* -------------------------------------------------------------------------- */
+
+// A posting for a housekeeper, driver or cashier names few "skills" a software
+// dictionary would know. When too few known skills are found, the important
+// duty and requirement words are used instead so the page always has something
+// real to match against.
+const MIN_SKILL_KEYWORDS = 3;
+const MAX_GENERAL_KEYWORDS = 12;
+// A short posting has too little text to demand repetition from its words.
+const RELAX_BELOW = 12;
+
+const GENERAL_NOISE = new Set([
+  "ability", "able", "applicants", "applicant", "applications", "apply", "assist",
+  "available", "based", "become", "being", "candidate", "candidates", "come",
+  "company", "comfortable", "daily", "demonstrated", "desired", "diploma", "ensure",
+  "environment", "equivalent", "excellent", "experience", "experienced", "familiar",
+  "following", "fresh", "full", "good", "great", "have", "having", "help", "helping",
+  "high", "hired", "hiring", "include", "includes", "including", "interested",
+  "join", "keen", "knowledge", "level", "like", "location", "looking", "maintain",
+  "make", "making", "manage", "many", "minimum", "month", "months", "must", "needed",
+  "needs", "opportunity", "other", "others", "part", "perform", "person", "plus",
+  "position", "possess", "possible", "preferably", "preferred", "previous",
+  "prior", "provide", "proven", "qualifications", "qualified", "range", "related",
+  "relevant", "reliable", "required", "requirement", "requirements", "responsible",
+  "responsibilities", "responsibility", "role", "salary", "seeking", "similar",
+  "skill", "skills", "solid", "strong", "successful", "support", "supporting",
+  "take", "team", "their", "them", "these", "those", "through", "time", "types",
+  "about", "above", "after", "again", "also", "been", "both", "each", "from", "into",
+  "more", "most", "over", "same", "some", "such", "than", "that", "then", "they",
+  "this", "very", "what", "when", "where", "which", "while", "will", "with",
+  "answer", "balance", "class", "close", "greet", "handle", "hold", "operate",
+  "prepare", "valid", "wanted", "welcome",
+  "under", "understanding", "using", "vacancy", "various", "well", "willing",
+  "within", "without", "work", "working", "works", "would", "year", "years", "your",
+]);
+
+const SEGMENT_BREAK = /[,;:()/•·|]|\s[-–—]\s|\s&\s|\s(?:and|or|with|for|to|of|in|on|at|as|by|the|a|an)\s/i;
+
+const capitalise = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+function collectGeneralKeywords(
+  jobDescription: string,
+  companyTerms: Set<string>,
+  taken: Set<string>,
+  room: number,
+): JobKeyword[] {
+  if (room <= 0) return [];
+  const found = new Map<string, { count: number; weight: number }>();
+  // Capitalised names after "at", "join" or "for" ("At Northwind Labs we…") are
+  // employers, not requirements.
+  const properNames = new Set<string>();
+  const namePattern =
+    /(?:^|\s)(?:[Aa]t|[Jj]oin|[Jj]oining|[Ff]or|[Aa]bout)\s+((?:[A-Z][A-Za-z&'-]*)(?:\s+[A-Z][A-Za-z&'-]*)*)/g;
+  for (const match of jobDescription.matchAll(namePattern)) {
+    for (const word of match[1].split(/\s+/)) properNames.add(word.toLowerCase());
+  }
+  const hasMoreLines =
+    jobDescription.split(/\r?\n/).filter((line) => line.trim()).length > 1;
+  let sectionWeight = DEFAULT_WEIGHT;
+  let seenFirstLine = false;
+
+  const add = (term: string, weight: number) => {
+    const existing = found.get(term);
+    if (existing) {
+      existing.count += 1;
+      existing.weight = Math.max(existing.weight, weight);
+    } else {
+      found.set(term, { count: 1, weight });
+    }
+  };
+
+  for (const line of jobDescription.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (!seenFirstLine) {
+      seenFirstLine = true;
+      if (hasMoreLines && isJobTitleLine(trimmed)) continue;
+    }
+    if (isSectionHeading(trimmed)) {
+      sectionWeight = headingWeight(trimmed);
+      continue;
+    }
+    if (cueWeight(trimmed) === null && mentionsCompany(trimmed, companyTerms)) continue;
+
+    for (const { text, weight } of lineChunks(line, sectionWeight)) {
+      for (const segment of text.split(new RegExp(SEGMENT_BREAK.source, "gi"))) {
+        const words = (segment.match(/[A-Za-z][A-Za-z'-]*/g) ?? []).map((word) =>
+          word.toLowerCase(),
+        );
+        const meaningful = words.map(
+          (word) =>
+            word.length >= 4 &&
+            !GENERAL_NOISE.has(word) &&
+            !properNames.has(word) &&
+            !companyTerms.has(word),
+        );
+        for (let index = 0; index < words.length; index += 1) {
+          if (!meaningful[index]) continue;
+          add(words[index], weight);
+          if (meaningful[index + 1]) add(`${words[index]} ${words[index + 1]}`, weight + 0.5);
+        }
+      }
+    }
+  }
+
+  const entries = [...found.entries()].filter(
+    ([term]) => !taken.has(term) && !SKILL_LOOKUP.has(term),
+  );
+  // "cleaning" on its own adds nothing once "cleaning products" is kept.
+  const phrases = entries.filter(([term]) => term.includes(" "));
+  const stemOf = (word: string) => word.replace(/(?:ing|ers|er|ed|es|s)$/, "");
+  const seenStems = new Set<string>();
+  const kept = entries
+    .filter(
+      ([term, value]) =>
+        term.includes(" ") ||
+        !phrases.some(
+          ([phrase, other]) => phrase.split(" ").includes(term) && other.count >= value.count,
+        ),
     )
-    .slice(0, limit);
+    // A single word needs real signal: a requirement, or repetition. One passing
+    // duty verb ("greet", "operate") is not a skill.
+    .filter(
+      ([term, value]) =>
+        term.includes(" ") ||
+        value.count >= 2 ||
+        value.weight >= REQUIREMENT_WEIGHT ||
+        entries.length < RELAX_BELOW,
+    )
+    // "clean" and "cleaning" are one requirement.
+    .sort((a, b) => b[1].count - a[1].count || b[1].weight - a[1].weight)
+    .filter(([term]) => {
+      if (term.includes(" ")) return true;
+      const stem = stemOf(term);
+      if (seenStems.has(stem)) return false;
+      seenStems.add(stem);
+      return true;
+    });
+
+  return kept
+    .map(([term, value]) => ({
+      term,
+      display: term
+        .split(" ")
+        .map((word, position) => (position === 0 ? capitalise(word) : word))
+        .join(" "),
+      count: value.count,
+      weight: value.weight + Math.min(value.count - 1, 2) * 0.5,
+    }))
+    .sort(
+      (a, b) =>
+        b.weight - a.weight ||
+        b.count - a.count ||
+        b.term.length - a.term.length ||
+        a.term.localeCompare(b.term),
+    )
+    .slice(0, Math.min(room, MAX_GENERAL_KEYWORDS));
+}
+
+/** Plain word forms, so "cleaning" in a posting matches "cleaned" on a resume. */
+function wordForms(term: string): string[] {
+  const words = term.split(" ");
+  const last = words[words.length - 1];
+  const head = words.slice(0, -1).join(" ");
+  const forms = new Set<string>([last]);
+  const base = last.replace(/(?:ing|ers|er|ed|es|s)$/, "");
+  if (base.length >= 3) {
+    for (const suffix of ["", "s", "es", "ed", "ing", "er", "ers", "e"]) {
+      forms.add(base + suffix);
+    }
+  }
+  return [...forms].map((form) => (head ? `${head} ${form}` : form));
 }
 
 /** Compares the resume text with the job keywords, ignoring case. */
@@ -551,7 +811,7 @@ export function matchKeywords(
   const missing: JobKeyword[] = [];
 
   for (const keyword of keywords) {
-    const aliases = SKILL_ALIASES.get(keyword.term) ?? [keyword.term];
+    const aliases = SKILL_ALIASES.get(keyword.term) ?? wordForms(keyword.term);
     const present = aliases.some((alias) =>
       haystack.includes(` ${alias} `),
     );

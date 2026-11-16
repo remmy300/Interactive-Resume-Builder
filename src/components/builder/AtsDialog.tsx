@@ -4,6 +4,7 @@ import { useMemo, useState, type Dispatch } from "react";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CloseIcon from "@mui/icons-material/Close";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -17,12 +18,14 @@ import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import {
   analyzeResume,
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
   extractKeywords,
   matchKeywords,
   mergeSkillList,
   suggestSkillsField,
+  type AtsCategory,
   type AtsCheck,
-  type AtsGroup,
   type AtsStatus,
 } from "@/lib/ats";
 import type { EditorAction } from "@/lib/resume-reducer";
@@ -37,11 +40,9 @@ interface AtsDialogProps {
 
 type AtsTab = "checks" | "job";
 
-const GROUPS: Array<{ id: AtsGroup; title: string }> = [
-  { id: "contact", title: "Contact and identity" },
-  { id: "content", title: "Content recruiters look for" },
-  { id: "format", title: "Layout and readability" },
-];
+const GROUPS: Array<{ id: AtsCategory; title: string }> = CATEGORY_ORDER.map(
+  (id) => ({ id, title: CATEGORY_LABELS[id] }),
+);
 
 const STATUS: Record<
   AtsStatus,
@@ -50,6 +51,7 @@ const STATUS: Record<
   pass: { icon: CheckCircleIcon, color: "text-emerald-600", label: "Pass" },
   warn: { icon: WarningAmberIcon, color: "text-amber-600", label: "Improve" },
   fail: { icon: CancelIcon, color: "text-red-600", label: "Fix" },
+  info: { icon: InfoOutlinedIcon, color: "text-slate-500", label: "Note" },
 };
 
 const SKILL_LABELS: Record<keyof Skills, string> = {
@@ -58,6 +60,9 @@ const SKILL_LABELS: Record<keyof Skills, string> = {
   databases: "Databases",
   spoken: "Spoken languages",
 };
+
+const formatPoints = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(1);
 
 function scoreTone(
   score: number,
@@ -136,14 +141,13 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
         <div>
           <h2 id="ats-title" className="text-base font-semibold text-slate-900">
-            ATS check
+            Resume quality check
           </h2>
           <p className="mt-0.5 text-sm text-slate-600">
-            See how an applicant tracking system reads this resume, then tailor it
-            to a job.
+            Review structure, evidence, and clarity, then tailor the resume to a job.
           </p>
         </div>
-        <IconButton aria-label="Close ATS check" onClick={onClose}>
+        <IconButton aria-label="Close resume quality check" onClick={onClose}>
           <CloseIcon />
         </IconButton>
       </div>
@@ -151,7 +155,7 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
       <Tabs
         value={tab}
         onChange={(_event, value: AtsTab) => setTab(value)}
-        aria-label="ATS tools"
+        aria-label="Resume quality tools"
         sx={{ px: 2, borderBottom: 1, borderColor: "divider" }}
       >
         <Tab value="checks" label="Resume check" />
@@ -165,7 +169,7 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    ATS readiness
+                    Resume quality
                   </p>
                   <p className={`text-3xl font-bold ${tone.text}`}>
                     {report.score}
@@ -189,7 +193,7 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
               />
               <p className="mt-2 text-xs text-slate-600">
                 {report.passed} checks pass · {report.warnings} to polish ·{" "}
-                {report.failed} must fix
+                {report.failed} must fix · {report.info} notes
               </p>
               <p className="mt-1 text-sm text-slate-700">{report.verdict}</p>
               <ScoreCaps report={report} />
@@ -198,30 +202,41 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
 
             {GROUPS.map((group) => {
               const checks = report.checks.filter(
-                (check) => check.group === group.id,
+                (check) => check.category === group.id,
               );
               if (checks.length === 0) return null;
+              const category = report.categories.find(
+                (item) => item.id === group.id,
+              );
               return (
                 <section
                   key={group.id}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2"
                 >
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {group.title}
-                  </h3>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {group.title}
+                    </h3>
+                    {category && category.total > 0 && (
+                      <span className="text-xs font-medium text-slate-500">
+                        {formatPoints(category.earned)}/
+                        {formatPoints(category.total)}
+                      </span>
+                    )}
+                  </div>
                   <ul className="divide-y divide-slate-100">
                     {checks.map((check) => (
                       <CheckRow key={check.id} check={check} />
                     ))}
                   </ul>
-                  {group.id === "format" && data.template === "two-column" && (
+                  {group.id === "document" && data.template === "two-column" && (
                     <Button
                       size="small"
                       variant="outlined"
                       sx={{ mb: 2 }}
                       onClick={() => dispatch({ type: "template", value: "ats" })}
                     >
-                      Switch to ATS safe template
+                      Try the ATS safe template
                     </Button>
                   )}
                 </section>
@@ -230,7 +245,8 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
 
             <p className="text-xs text-slate-500">
               Tip: the ATS safe template prints in a single column with plain black
-              text, which is the safest format for online application forms.
+              text. Two-column layouts are not automatically penalised; export the PDF
+              and verify that text is selectable and the reading order is sensible.
             </p>
           </div>
         ) : (

@@ -302,8 +302,8 @@ export function JobMatchClient() {
                   Bullet improvements
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Rewrites use your own wording. Add real metrics where prompted, and
-                  edit any suggestion before applying it.
+                  Only bullets with weak or first-person wording are listed, using your
+                  own words. Edit any suggestion before applying it.
                 </p>
                 {match.missing.length > 0 && (
                   <p className="mt-1 text-xs text-slate-500">
@@ -320,7 +320,8 @@ export function JobMatchClient() {
 
                 {suggestions.length === 0 ? (
                   <p className="mt-3 text-sm text-emerald-700">
-                    Your bullets already start with strong verbs and include metrics.
+                    No bullet needs rewording. They already start with strong, direct
+                    wording.
                   </p>
                 ) : (
                   <div className="mt-3 space-y-3">

@@ -51,7 +51,11 @@ export type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
  */
 export function useResumeEditor(initialResumeId?: string | null) {
   const [items, setItems] = useState<ResumeSummary[]>([]);
-  const [data, dispatch] = useReducer(resumeReducer, undefined, createEmptyResume);
+  const [data, dispatch] = useReducer(
+    resumeReducer,
+    undefined,
+    createEmptyResume,
+  );
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [title, setTitle] = useState(DEFAULT_TITLE);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
@@ -60,7 +64,9 @@ export function useResumeEditor(initialResumeId?: string | null) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const [savedKey, setSavedKey] = useState(() => serialize(DEFAULT_TITLE, data));
+  const [savedKey, setSavedKey] = useState(() =>
+    serialize(DEFAULT_TITLE, data),
+  );
 
   const savingRef = useRef<Promise<boolean> | null>(null);
   const savedKeyRef = useRef(savedKey);
@@ -97,7 +103,9 @@ export function useResumeEditor(initialResumeId?: string | null) {
       } catch (openError) {
         setSaveState("error");
         setError(
-          openError instanceof Error ? openError.message : "Could not open resume.",
+          openError instanceof Error
+            ? openError.message
+            : "Could not open resume.",
         );
         return false;
       }
@@ -119,7 +127,8 @@ export function useResumeEditor(initialResumeId?: string | null) {
           initialResumeId && initialResumeId !== "new"
             ? list.items.find((item) => item.id === initialResumeId)
             : undefined;
-        const target = requested ?? (initialResumeId === "new" ? undefined : list.items[0]);
+        const target =
+          requested ?? (initialResumeId === "new" ? undefined : list.items[0]);
         if (target) {
           await openResume(target.id);
         }
@@ -226,15 +235,12 @@ export function useResumeEditor(initialResumeId?: string | null) {
 
   const save = useCallback(
     async (options: { silent?: boolean } = {}): Promise<boolean> => {
-      // A save is already running (often an autosave). Wait for it, then save
-      // whatever is still unsaved, instead of silently doing nothing.
       if (savingRef.current) {
         await savingRef.current;
         await new Promise((resolve) => setTimeout(resolve, 0));
         return saveRef.current(options);
       }
 
-      // Nothing changed since the last save, so there is nothing to send.
       if (currentKeyRef.current === savedKeyRef.current) return true;
 
       const trimmedTitle = title.trim();
@@ -275,7 +281,9 @@ export function useResumeEditor(initialResumeId?: string | null) {
               });
 
           setResumeId(record.id);
-          setTitle((current) => (current === trimmedTitle ? record.title : current));
+          setTitle((current) =>
+            current === trimmedTitle ? record.title : current,
+          );
           setUpdatedAt(record.updatedAt);
           setSavedKey(sentKey);
           savedKeyRef.current = sentKey;
@@ -352,7 +360,10 @@ export function useResumeEditor(initialResumeId?: string | null) {
     return () => {
       // Only an existing resume: an unsaved draft is never created behind the
       // user's back.
-      if (resumeIdRef.current && currentKeyRef.current !== savedKeyRef.current) {
+      if (
+        resumeIdRef.current &&
+        currentKeyRef.current !== savedKeyRef.current
+      ) {
         void saveRef.current({ silent: true });
       }
     };
@@ -394,40 +405,37 @@ export function useResumeEditor(initialResumeId?: string | null) {
     }
   }, []);
 
-  const toggleShare = useCallback(
-    async (id: string, enabled: boolean) => {
-      try {
-        const result = await apiFetch<{
-          isPublic: boolean;
-          publicSlug: string | null;
-        }>(`/api/resumes/${id}/share`, {
-          method: "POST",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ enabled }),
-        });
-        setItems((previous) =>
-          previous.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  isPublic: result.isPublic,
-                  publicSlug: result.publicSlug,
-                }
-              : item,
-          ),
-        );
-        return result;
-      } catch (shareError) {
-        setError(
-          shareError instanceof Error
-            ? shareError.message
-            : "Could not update sharing.",
-        );
-        return null;
-      }
-    },
-    [],
-  );
+  const toggleShare = useCallback(async (id: string, enabled: boolean) => {
+    try {
+      const result = await apiFetch<{
+        isPublic: boolean;
+        publicSlug: string | null;
+      }>(`/api/resumes/${id}/share`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ enabled }),
+      });
+      setItems((previous) =>
+        previous.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                isPublic: result.isPublic,
+                publicSlug: result.publicSlug,
+              }
+            : item,
+        ),
+      );
+      return result;
+    } catch (shareError) {
+      setError(
+        shareError instanceof Error
+          ? shareError.message
+          : "Could not update sharing.",
+      );
+      return null;
+    }
+  }, []);
 
   const currentItem = items.find((item) => item.id === resumeId) ?? null;
 

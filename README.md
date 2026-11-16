@@ -1,7 +1,7 @@
 # Resume Studio
 
 A full-stack career workspace: Google sign-in, multiple private resumes, CV
-import, a dashboard, an ATS checker and job-description matcher, cover letters,
+import, a dashboard, a resume-quality checker and job-description matcher, cover letters,
 application tracking, interview preparation, and text-based PDF export that
 applicant tracking systems can actually read.
 
@@ -15,7 +15,7 @@ Material UI, and Tailwind CSS.
 - Multi-page career workspace at `/dashboard`: overview, resume builder, job
   match, CV check, cover letters, applications, interview prep, and profile
   sharing
-- Overview with resume/application counts, latest ATS score, and recent activity
+- Overview with resume/application counts, latest resume-quality score, and recent activity
 - Responsive sidebar on desktop and a slide-out menu on mobile
 
 **Editing**
@@ -35,17 +35,25 @@ Material UI, and Tailwind CSS.
 - Duplicate-safe entry ids, undoable delete, and a resume switcher that warns
   before discarding edits
 
-**ATS and job matching**
+**Resume quality and job matching**
 
-- ATS check dialog with a 0–100 readiness score and pass/improve/fix checks for
-  contact details, summary, dates, action verbs, measurable results, skills,
-  projects, layout, and length
-- Dedicated CV check page with a “Fix these first” list and actionable advice
-- Job match page: paste a job description, see the match percentage, missing
-  skills, and the keywords already covered
-- Bullet rewrite suggestions use your own wording, prompt for real metrics, and
-  are editable. Nothing is applied until you select items and confirm in a review
-  dialog
+- Resume quality check with a 0–100 internal assessment and a category breakdown:
+  experience and achievements, skills and technical evidence, content quality,
+  contact information, structure and consistency, and document compatibility
+- Evidence-based checks: specific contributions and outcomes, technical evidence,
+  credible metrics as a bonus rather than a requirement, action and ownership,
+  sentence completeness and fragment detection, unresolved placeholder/TODO
+  detection, wording, dates, and length as a warning rather than a hard rule
+- Honest limits: PDF layout is not inferred from structured data. Export and verify
+  text extraction and reading order; two-column templates are not automatically
+  penalised
+- Dedicated CV check page with a highest-priority improvements list, category
+  scores, and actionable advice
+- Job match page: paste a job description, see the weighted requirement match,
+  relevant missing skills, and the requirements already covered
+- Bullet rewrite suggestions use your own wording, prompt for real metrics when
+  useful, and are editable. Nothing is applied until you select items and confirm
+  in a review dialog
 - Missing skills are added to the correct skills group only after confirmation
 
 **Career tools**
@@ -238,8 +246,10 @@ npm test
 
 Unit tests cover month formatting without timezone drift, resume JSON
 normalisation and validation, the editor reducer (add/remove/reorder), CV
-validity, A4 page counting, CV text import, the ATS score, keyword extraction,
-keyword matching, bullet suggestions, cover letters, and interview questions. CI
+validity, A4 page counting, CV text import, the resume-quality score, bullet
+evidence, action, sentence-completeness, and placeholder checks, keyword
+extraction, keyword matching, bullet suggestions, cover letters, and interview
+questions. CI
 runs lint, typecheck, tests, and a production build on every push and pull
 request.
 

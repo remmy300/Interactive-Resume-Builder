@@ -148,12 +148,12 @@ const SKILL_INPUTS: SkillInput[] = [
       "express",
     ],
   },
-  { display: "Full Stack", aliases: ["full stack", "full-stack"] },
+  { display: "Full Stack", aliases: ["full stack", "full-stack", "fullstack"] },
   { display: "Web Development", aliases: ["web"] },
   {
     display: "Mobile Development",
     aliases: [
-      "mobile",
+      // A bare "mobile" is too loose: "mobile money" is not app development.
       "mobile app development",
       "react native",
       "flutter",
@@ -332,6 +332,7 @@ const SKILL_INPUTS: SkillInput[] = [
   { display: "MySQL" },
   { display: "MariaDB" },
   { display: "MongoDB", aliases: ["mongo"] },
+  { display: "NoSQL", aliases: ["no sql"], related: ["mongodb", "dynamodb", "redis"] },
   { display: "SQLite" },
   { display: "Oracle", aliases: ["oracle db", "oracle database"] },
   { display: "SQL Server", aliases: ["mssql", "microsoft sql server"] },
@@ -378,7 +379,7 @@ const SKILL_INPUTS: SkillInput[] = [
   { display: "Data Visualization", aliases: ["data visualisation"] },
   { display: "Machine Learning", aliases: ["ml"] },
   { display: "Deep Learning" },
-  { display: "AI", aliases: ["artificial intelligence"] },
+  { display: "AI", aliases: ["artificial intelligence", "ki"] },
   { display: "NLP", aliases: ["natural language processing"] },
   { display: "Computer Vision" },
   { display: "TensorFlow" },
@@ -667,8 +668,11 @@ const SKILL_INPUTS: SkillInput[] = [
   { display: "Data Engineering" },
   { display: "Data Architecture" },
   { display: "Platform Engineering" },
-  { display: "Software Engineering" },
-  { display: "Software Development" },
+  // A "Software Developer" role already shows software development, so the job
+  // title on the resume counts as a match. These are resume-side only: a posting
+  // that says "Software Engineer" in passing does not add a requirement.
+  { display: "Software Engineering", related: ["software engineer", "software developer"] },
+  { display: "Software Development", related: ["software developer", "software engineer"] },
   { display: "Business Analysis" },
   { display: "Requirements Gathering", aliases: ["requirements analysis"] },
   { display: "Process Improvement" },
@@ -829,15 +833,24 @@ export const CASE_SENSITIVE_TERMS = new Set([
   "rest",
 ]);
 
-const TECH_SUFFIX =
-  /(?:js|ts|sql|db|api|sdk|cli|css|html|json|yaml|xml|cloud|stack|kit|framework|server|service|platform|engine|studio|hub|ai|ml|nlp|etl|elt)$/;
+// Only endings that are almost never part of an ordinary word. Suffixes such as
+// "ts", "service" or "platform" also end plain words ("bereits", "Kundenservice",
+// "results") and would turn them into fake skills.
+const TECH_SUFFIX = /(?:js|sql|db|sdk|css|html|json|yaml|xml|etl|elt)$/;
+
+/**
+ * Language proficiency levels ("C2", "B1") and work-visa codes ("J1", "H-1B")
+ * contain a digit like a technology name does, but they are not skills.
+ */
+export const isLanguageLevel = (value: string) =>
+  /^(?:[abc][12]|h-?1b|[fjlo]-?1|[eo]-?[123]|tn)$/i.test(value.trim());
 
 /**
  * Whether an unknown token looks like a technology rather than a company,
  * location, or ordinary word. Deliberately conservative.
  */
 export function looksTechnical(raw: string, term: string): boolean {
-  if (term.length < 2 || /^\d+$/.test(term)) return false;
+  if (term.length < 2 || /^\d+$/.test(term) || isLanguageLevel(term)) return false;
   if (/[0-9+#]/.test(term)) return true;
   if (/[A-Z]/.test(raw.slice(1))) return true;
   if (

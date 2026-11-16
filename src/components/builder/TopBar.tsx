@@ -123,9 +123,9 @@ export function TopBar({
             variant="outlined"
             startIcon={<FactCheckIcon />}
             onClick={onOpenAts}
-            aria-label={`ATS check. Current score ${atsScore} out of 100.`}
+            aria-label={`Resume quality check. Current score ${atsScore} out of 100.`}
           >
-            ATS {atsScore}
+            Quality {atsScore}
           </Button>
           <Button size="small" variant="text" onClick={onPreview}>
             Preview

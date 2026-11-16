@@ -234,6 +234,19 @@ function joinLines(previous: string, next: string): string {
 function isContinuation(prev: string, next: string): boolean {
   if (!hasText(prev) || !hasText(next)) return false;
   if (BULLET_START.test(next) || DATE_RANGE_PATTERN.test(next)) return false;
+  // A long "Tech stack: …" list wraps like any other line ("…Vitest, React" /
+  // "Testing Library"). Nothing but a bullet can follow it, so a short line that
+  // is not a sentence or a verb-led bullet is the rest of the list.
+  if (
+    STACK_LABEL.test(prev.trim()) &&
+    !isStackLine(next) &&
+    !endsSentence(prev) &&
+    !endsSentence(next) &&
+    next.length <= 60 &&
+    !ACTION_VERBS.has(firstWord(next))
+  ) {
+    return true;
+  }
   if (isStackLine(prev) || isStackLine(next)) return false;
   if (endsSentence(prev)) return false;
   // A header ending in a placeholder ("GitHub: [link]") is complete.

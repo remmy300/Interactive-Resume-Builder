@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import InsertLinkIcon from "@mui/icons-material/InsertLink";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -18,6 +18,7 @@ import {
   type CoverLetterRecord,
   type CoverLetterTone,
 } from "@/lib/career";
+import { extractKeywords, matchKeywords } from "@/lib/ats";
 import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import { insertLink, toHtml, toPlainText } from "@/lib/letter-links";
 import ConfirmDialog from "@/components/builder/ConfirmDialog";
@@ -58,6 +59,19 @@ export function CoverLettersClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: "success" | "error" | "info"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Live read-out of the pasted posting, so pasting visibly does something before
+  // "Generate draft" is pressed.
+  const requirements = useMemo(() => extractKeywords(jobDescription), [jobDescription]);
+  const resumeMatch = useMemo(
+    () =>
+      library.record
+        ? matchKeywords(library.record.data, requirements)
+        : { matched: [] as string[], missing: [] as string[], score: 0 },
+    [library.record, requirements],
+  );
+  const covered = resumeMatch.matched;
+  const lacking = resumeMatch.missing.slice(0, 6);
   const letterRef = useRef<HTMLTextAreaElement | null>(null);
   const selectionRef = useRef({ start: 0, end: 0 });
   const [linkDialog, setLinkDialog] = useState({ open: false, title: "" });
@@ -372,6 +386,33 @@ export function CoverLettersClient() {
               sx={{ mt: 3 }}
               slotProps={{ htmlInput: { maxLength: 12000 } }}
             />
+
+            {jobDescription.trim() && (
+              <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                {requirements.length === 0 ? (
+                  <p>No specific skills were found in that text. Paste the full posting.</p>
+                ) : (
+                  <>
+                    <p>
+                      Found {requirements.length} requirements.{" "}
+                      {library.record
+                        ? `The draft will mention up to 3 you already have${
+                            covered.length ? `: ${covered.slice(0, 3).join(", ")}` : ""
+                          }.`
+                        : "Pick a resume to see which ones your CV already covers."}
+                    </p>
+                    {library.record && lacking.length > 0 && (
+                      <p className="mt-1 text-slate-500">
+                        Not on your resume (never added to the letter): {lacking.join(", ")}
+                      </p>
+                    )}
+                    <p className="mt-1 text-slate-500">
+                      Click Generate draft to apply it.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="outlined" onClick={generate} disabled={!library.record}>

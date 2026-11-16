@@ -1,0 +1,12 @@
+import fs from "node:fs";
+import { PrismaClient } from "@prisma/client";
+import { extractKeywords, matchKeywords } from "./src/lib/ats";
+import { normalizeResumeData } from "./src/lib/resume-schema";
+const jd = fs.readFileSync(process.argv[2], "utf8");
+const p = new PrismaClient();
+const r = await p.resume.findFirst({ where: { deletedAt: null }, orderBy: { updatedAt: "desc" }, select: { data: true } });
+const kw = extractKeywords(jd);
+console.log(kw.map(k => `${k.display}(${k.weight})`).join(", "));
+const m = matchKeywords(normalizeResumeData(r!.data), kw);
+console.log("score", m.score, "\nmatched:", m.matched.join(", "), "\nmissing:", m.missing.join(", "));
+await p.$disconnect();

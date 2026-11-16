@@ -71,16 +71,24 @@ describe("analyzeResume", () => {
   it("scores a complete, quantified resume highly", () => {
     const report = analyzeResume(completeResume());
     expect(report.score).toBeGreaterThanOrEqual(85);
-    expect(report.checks.find((check) => check.id === "format")?.status).toBe("pass");
-    expect(report.checks.find((check) => check.id === "numbers")?.status).toBe(
+    expect(report.checks.find((check) => check.id === "export-text")?.status).toBe(
+      "pass",
+    );
+    expect(report.checks.find((check) => check.id === "outcomes")?.status).toBe(
       "pass",
     );
   });
 
-  it("warns when a two-column template is used", () => {
-    const data = { ...completeResume(), template: "two-column" as const };
-    const check = analyzeResume(data).checks.find((item) => item.id === "format");
-    expect(check?.status).toBe("warn");
+  it("does not penalise a two-column template without inspecting the exported PDF", () => {
+    const classic = analyzeResume({ ...completeResume(), template: "classic" });
+    const twoColumn = analyzeResume({
+      ...completeResume(),
+      template: "two-column",
+    });
+    expect(twoColumn.score).toBe(classic.score);
+    expect(
+      twoColumn.checks.find((item) => item.id === "pdf-verification")?.status,
+    ).toBe("info");
   });
 
   it("flags first-person wording", () => {
@@ -280,8 +288,9 @@ describe("analyzeResume honesty", () => {
   it("does not let a vague resume score well", () => {
     const report = analyzeResume(vagueResume());
     expect(report.score).toBeLessThan(70);
-    expect(report.caps.length).toBeGreaterThan(0);
-    expect(report.rawScore).toBeGreaterThan(report.score);
+    // Weighted deductions do the work; there is no arbitrary cap for vague wording.
+    expect(report.caps).toHaveLength(0);
+    expect(report.rawScore).toBe(report.score);
   });
 
   it("flags vague phrases and buzzwords with examples", () => {
@@ -291,14 +300,28 @@ describe("analyzeResume honesty", () => {
     expect(find(data, "cliches")?.status).not.toBe("pass");
   });
 
-  it("does not treat a year as a measurable result", () => {
+  it("treats metrics as a bonus rather than a requirement", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "Implemented OAuth login with Google and GitHub providers.",
+      "Integrated Stripe webhooks to keep subscription status in sync.",
+      "Added unit tests and a CI pipeline for the payments service.",
+      "Refactored the API layer to support versioned endpoints.",
+    ].join("\n");
+
+    expect(find(data, "outcomes")?.status).toBe("pass");
+    expect(find(data, "metrics")?.status).toBe("info");
+    expect(analyzeResume(data).score).toBeGreaterThan(70);
+  });
+
+  it("does not treat a bare year as a credible metric", () => {
     const data = completeResume();
     data.experience[0].description = [
       "Built the portal in 2023",
       "Led the redesign in 2022",
       "Shipped the app in 2021",
     ].join("\n");
-    expect(find(data, "numbers")?.status).toBe("fail");
+    expect(find(data, "metrics")?.status).toBe("warn");
   });
 
   it("flags end dates before start dates and long gaps", () => {
@@ -332,5 +355,325 @@ describe("analyzeResume honesty", () => {
     const data = completeResume();
     data.skills.technologies = "Kubernetes, Terraform, Ansible, Go, Rust";
     expect(find(data, "skills-evidence")?.status).not.toBe("pass");
+  });
+
+  it("distinguishes strong actions, passive descriptions, responsibilities, and vague bullets", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "The dashboard was built by the team.",
+      "Responsible for the billing dashboard.",
+      "Various tasks and meetings.",
+      "Built a React dashboard used by 12 product teams.",
+    ].join("\n");
+
+    const check = find(data, "action");
+    expect(check?.status).not.toBe("pass");
+    const examples = check?.examples?.join(" ") ?? "";
+    expect(examples).toMatch(/Passive:/);
+    expect(examples).toMatch(/Responsibility:/);
+    expect(examples).toMatch(/Vague:/);
+  });
+
+  it("fails and caps a resume with unresolved placeholder text", () => {
+    const data = completeResume();
+    data.experience[0].description +=
+      "\nDesigned schemas and wrote queries. [add a measurable result: %, time saved, users, or revenue]";
+
+    const report = analyzeResume(data);
+    expect(find(data, "unresolved-placeholders")?.status).toBe("fail");
+    expect(find(data, "unresolved-placeholders")?.examples?.length).toBeGreaterThan(
+      0,
+    );
+    expect(report.score).toBeLessThanOrEqual(60);
+    expect(report.caps.length).toBeGreaterThan(0);
+  });
+
+  it("flags fragment bullets and lowers the score", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "Built dashboard",
+      "Implemented API",
+      "React, TypeScript, and Node.js",
+      "Reduced latency",
+      "Added tests",
+      "Shipped feature",
+    ].join("\n");
+
+    const report = analyzeResume(data);
+    const completeness = report.checks.find(
+      (check) => check.id === "sentence-completeness",
+    );
+    expect(completeness?.status).toBe("fail");
+    expect(completeness?.examples?.length).toBeGreaterThan(0);
+    expect(report.score).toBeLessThan(85);
+  });
+
+  it("passes complete, well-formed bullets", () => {
+    expect(
+      find(completeResume(), "sentence-completeness")?.status,
+    ).toBe("pass");
+  });
+
+  it("flags comma-separated action fragments", () => {
+    const data = completeResume();
+    data.experience[0].description =
+      "Built a responsive web application, integrated APIs, and wrote tests.";
+    expect(find(data, "sentence-completeness")?.status).toBe("fail");
+  });
+
+  it("does not let project bullets hide an empty work role", () => {
+    const data = completeResume();
+    data.experience[0].description = "";
+    data.projects = [
+      {
+        id: "p1",
+        title: "Payments dashboard",
+        description: [
+          "Built a React dashboard for the payments team.",
+          "Implemented OAuth login with Google and GitHub providers.",
+          "Added unit tests and a CI pipeline.",
+        ].join("\n"),
+        link: "",
+        github: "",
+      },
+    ];
+
+    const report = analyzeResume(data);
+    expect(find(data, "outcomes")?.status).toBe("fail");
+    expect(find(data, "action")?.status).toBe("fail");
+    expect(find(data, "role-bullets")?.status).toBe("fail");
+    expect(report.score).toBeLessThan(85);
+  });
+
+  it("treats word count as a warning rather than a pass/fail rule", () => {
+    const short = completeResume();
+    short.summary = "";
+    short.experience[0].description = "Built a React dashboard.";
+    expect(find(short, "length")?.status).not.toBe("fail");
+
+    const long = completeResume();
+    long.summary = Array.from({ length: 700 }, (_, index) => `word${index}`).join(
+      " ",
+    );
+    // About 800 words: comfortably inside the warning band, not automatically bad.
+    expect(find(long, "length")?.status).toBe("pass");
+  });
+
+  it("does not mark incomplete experience or education entries as complete", () => {
+    const experience = completeResume();
+    experience.experience[0].endDate = "";
+    experience.experience[0].current = false;
+    expect(find(experience, "experience")?.status).toBe("warn");
+
+    const education = completeResume();
+    education.education[0].degree = "";
+    expect(find(education, "education")?.status).toBe("warn");
+  });
+
+  it("does not let optional contact details dominate the score", () => {
+    const data = completeResume();
+    data.personal.phone = "";
+    data.personal.location = "";
+    data.personal.linkedIn = "";
+    data.personal.github = "";
+    data.personal.portfolio = "";
+
+    const report = analyzeResume(data);
+    expect(report.score).toBeGreaterThan(85);
+    expect(find(data, "name")?.status).toBe("pass");
+    expect(find(data, "email")?.status).toBe("pass");
+  });
+
+  it("reports a category breakdown that totals 100 points", () => {
+    const report = analyzeResume(completeResume());
+    expect(report.categories).toHaveLength(6);
+    expect(report.categories.reduce((sum, item) => sum + item.total, 0)).toBe(100);
+    expect(report.categories.map((item) => item.label)).toContain(
+      "Document compatibility",
+    );
+  });
+
+  it("only caps the score for genuine critical blockers", () => {
+    const data = completeResume();
+    data.personal.name = "";
+    data.personal.email = "";
+
+    const report = analyzeResume(data);
+    expect(report.score).toBeLessThanOrEqual(35);
+    expect(report.caps.length).toBeGreaterThan(0);
+  });
+});
+
+describe("resume types", () => {
+  it("does not score a resume with no experience or projects highly", () => {
+    const data = completeResume();
+    data.experience = [];
+    data.projects = [];
+
+    const report = analyzeResume(data);
+    expect(report.score).toBeLessThan(70);
+    expect(report.checks.find((check) => check.id === "outcomes")?.status).toBe(
+      "fail",
+    );
+    expect(report.checks.find((check) => check.id === "action")?.status).toBe(
+      "fail",
+    );
+  });
+
+  it("supports a graduate with projects and no work experience", () => {
+    const data = createEmptyResume();
+    data.personal = {
+      name: "Sam Rivera",
+      title: "Junior Developer",
+      phone: "",
+      email: "sam@example.com",
+      location: "Manchester, UK",
+      linkedIn: "",
+      github: "github.com/sam",
+      portfolio: "",
+    };
+    data.summary =
+      "Computer science graduate building accessible React applications.";
+    data.experience = [];
+    data.education = [
+      {
+        id: "edu-1",
+        college: "University of Manchester",
+        degree: "BSc Computer Science",
+        startDate: "2022-09",
+        endDate: "2025-06",
+        current: false,
+      },
+    ];
+    data.projects = [
+      {
+        id: "p1",
+        title: "Task manager",
+        description: [
+          "Built a task manager with React, TypeScript, and a REST API.",
+          "Added unit tests and a CI pipeline that caught regressions early.",
+          "Implemented keyboard navigation and WCAG accessibility checks.",
+        ].join("\n"),
+        link: "https://example.com/tasks",
+        github: "https://github.com/sam/tasks",
+      },
+    ];
+    data.skills = {
+      languages: "TypeScript, SQL",
+      technologies: "React, Next.js, Docker",
+      databases: "PostgreSQL",
+      spoken: "English",
+    };
+
+    const report = analyzeResume(data);
+    expect(report.score).toBeGreaterThan(55);
+    expect(report.checks.find((check) => check.id === "experience")?.status).toBe(
+      "warn",
+    );
+    expect(
+      report.checks.find((check) => check.id === "skills-evidence")?.status,
+    ).toBe("warn");
+  });
+
+  it("supports a non-technical professional with operational evidence", () => {
+    const data = createEmptyResume();
+    data.personal = {
+      name: "Jordan Blake",
+      title: "Operations Manager",
+      phone: "+44 20 7946 0100",
+      email: "jordan@example.com",
+      location: "Leeds, UK",
+      linkedIn: "linkedin.com/in/jordan",
+      github: "",
+      portfolio: "",
+    };
+    data.summary =
+      "Operations manager focused on inventory accuracy, logistics, and team performance.";
+    data.experience = [
+      {
+        id: "e1",
+        company: "North Retail",
+        role: "Operations Manager",
+        description: [
+          "Managed a team of 18 across two stores and improved on-time stock replenishment.",
+          "Reduced stock loss by 15% through a new inventory and audit process.",
+          "Introduced forecasting and scheduling workflows used by three departments.",
+        ].join("\n"),
+        startDate: "2020-03",
+        endDate: "",
+        current: true,
+      },
+    ];
+    data.education = [
+      {
+        id: "edu-1",
+        college: "Leeds Business School",
+        degree: "BA Business Management",
+        startDate: "2015-09",
+        endDate: "2018-06",
+        current: false,
+      },
+    ];
+    data.skills = {
+      languages: "",
+      technologies: "Inventory Management, Logistics, Forecasting",
+      databases: "",
+      spoken: "English",
+    };
+
+    const report = analyzeResume(data);
+    expect(report.score).toBeGreaterThan(65);
+    expect(report.checks.find((check) => check.id === "outcomes")?.status).toBe(
+      "pass",
+    );
+    expect(report.checks.find((check) => check.id === "metrics")?.status).toBe(
+      "pass",
+    );
+  });
+});
+
+describe("job postings that are not about software", () => {
+  const terms = (text: string) => extractKeywords(text).map((keyword) => keyword.display);
+
+  it("finds the duties and requirements of a housekeeping job", () => {
+    const found = terms(
+      [
+        "Housekeeper",
+        "We are looking for a reliable Housekeeper. Duties include cleaning rooms, doing laundry, ironing and washing dishes.",
+        "Requirements:",
+        "- Minimum 2 years experience as a housekeeper",
+        "- Honest, hardworking and trustworthy",
+        "- Knowledge of cleaning products and equipment",
+      ].join("\n"),
+    );
+    expect(found.length).toBeGreaterThanOrEqual(5);
+    expect(found).toEqual(expect.arrayContaining(["Cleaning", "Trustworthy"]));
+  });
+
+  it("returns something for a driver posting with no software terms", () => {
+    expect(
+      terms("Driver wanted. Must hold a valid driving licence, vehicle maintenance knowledge, punctual."),
+    ).not.toEqual([]);
+  });
+
+  it("matches word forms, so cleaned on a resume covers cleaning in a posting", () => {
+    const data = completeResume();
+    data.experience[0].description = "Cleaned and organised 12 rooms daily.";
+    const keywords = extractKeywords(
+      "Requirements:\n- Cleaning experience\n- Trustworthy and honest\n- Laundry\n- Ironing\n- Dishes",
+    );
+    expect(matchKeywords(data, keywords).matched).toContain("Cleaning");
+  });
+
+  it("does not read 'mobile money' as mobile app development", () => {
+    expect(terms("Cashier: handle cash and mobile money payments")).not.toContain(
+      "Mobile Development",
+    );
+  });
+
+  it("uses a posting pasted on a single line, even in capitals", () => {
+    expect(
+      terms("FRONTEND DEVELOPER REQUIREMENTS: REACT, TYPESCRIPT, HTML, CSS, TAILWIND, REDUX, GIT"),
+    ).toEqual(expect.arrayContaining(["React", "TypeScript", "Git"]));
   });
 });
