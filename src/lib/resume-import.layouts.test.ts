@@ -132,3 +132,34 @@ describe("a wrapped Tech stack line from an exported resume", () => {
     ]);
   });
 });
+
+describe("this app's own Classic Professional export", () => {
+  const exported = [
+    "Alex Morgan",
+    "Frontend Engineer | React · Next.js · TypeScript",
+    "alex@example.com · +254 700 000 000 · Nairobi, Kenya · LinkedIn · GitHub",
+    "PROFESSIONAL SUMMARY",
+    "Frontend engineer with 4+ years shipping production web apps in React and TypeScript.",
+    "TECHNICAL SKILLS & TOOLS",
+    "JavaScript | TypeScript | React | Next.js | Prisma | PostgreSQL",
+    "PROJECTS",
+    "Grocery Shop (e-commerce) | Next.js, TypeScript, PostgreSQL, Prisma | Live demo · GitHub",
+    "Built cart, checkout and admin workflows on REST APIs and PostgreSQL.",
+    "Resume Studio (career platform) | Next.js, TypeScript, Prisma, NextAuth, Material UI, Tailwind CSS",
+    "Built PDF and Word resume import and a paginated live preview with PDF export.",
+  ].join("\n");
+
+  it("reads the skills heading and every project, with its stack", () => {
+    const { data } = parseResumeText(exported);
+    expect(data.skills.languages).toContain("TypeScript");
+    expect(data.skills.technologies).toContain("Next.js");
+    expect(data.projects.map((project) => project.title)).toEqual([
+      "Grocery Shop (e-commerce)",
+      "Resume Studio (career platform)",
+    ]);
+    expect(data.projects[0].description.split("\n")[0]).toBe(
+      "Tech stack: Next.js, TypeScript, PostgreSQL, Prisma",
+    );
+    expect(data.projects[1].description.split("\n")[0]).toMatch(/^Tech stack: Next\.js, TypeScript, Prisma, NextAuth/);
+  });
+});

@@ -1,14 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import { analyzeResume, type AtsStatus } from "@/lib/ats";
-import { useResumeLibrary } from "@/hooks/useResumeLibrary";
+import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
+import type { ResumeData } from "@/lib/resume-schema";
+import { useResumeLibrary, type LibraryRecord } from "@/hooks/useResumeLibrary";
+import CheckFixes from "@/components/dashboard/CheckFixes";
 import { CheckExamples, ScoreCaps, SCORE_NOTE } from "@/components/dashboard/CheckExamples";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
@@ -29,6 +34,38 @@ const formatPoints = (value: number) =>
 export function CvCheckClient() {
   const library = useResumeLibrary();
   const report = library.record ? analyzeResume(library.record.data) : null;
+  const [isSaving, setIsSaving] = useState(false);
+  const [notice, setNotice] = useState<{
+    severity: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  /** Saves a one-click fix to this resume; the score is recalculated from the saved copy. */
+  const applyFix = async (next: ResumeData, message: string) => {
+    const record = library.record;
+    if (!record) return;
+    setIsSaving(true);
+    try {
+      const updated = await apiFetch<LibraryRecord>(`/api/resumes/${record.id}`, {
+        method: "PATCH",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({
+          title: record.title,
+          data: next,
+          updatedAt: record.updatedAt,
+        }),
+      });
+      library.setRecord(updated);
+      setNotice({ severity: "success", message: `${message} The check below is updated.` });
+    } catch (error) {
+      setNotice({
+        severity: "error",
+        message: error instanceof Error ? error.message : "Could not save the change.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Biggest score impact first, so the list is a to-do order, not a dump.
   const impact = (check: { status: AtsStatus; weight: number }) =>
@@ -54,6 +91,12 @@ export function CvCheckClient() {
           </Link>
         }
       />
+
+      {notice && (
+        <Alert severity={notice.severity} className="mb-4" onClose={() => setNotice(null)}>
+          {notice.message}
+        </Alert>
+      )}
 
       {library.error && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -193,6 +236,14 @@ export function CvCheckClient() {
                               {check.detail}
                             </p>
                             <CheckExamples examples={check.examples} />
+                            {library.record && (
+                              <CheckFixes
+                                checkId={check.id}
+                                data={library.record.data}
+                                saving={isSaving}
+                                onApply={(next, message) => void applyFix(next, message)}
+                              />
+                            )}
                           </div>
                         </li>
                       );

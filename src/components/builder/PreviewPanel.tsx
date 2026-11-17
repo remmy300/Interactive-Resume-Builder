@@ -9,7 +9,7 @@ import { ResumePreview } from "@/components/preview/ResumePreview";
 import PreviewFrame from "@/components/preview/PreviewFrame";
 import type { ResumeSummary } from "@/hooks/useResumeEditor";
 import { TEMPLATES, type ResumeData } from "@/lib/resume-schema";
-import { describePages, type PreviewMetrics } from "@/lib/preview";
+import { PAGE_SIZES, describePages, type PreviewMetrics } from "@/lib/preview";
 
 interface PreviewPanelProps {
   data: ResumeData;
@@ -52,7 +52,7 @@ export function PreviewPanel({
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Live preview</h2>
           <p className="text-xs text-slate-500">
-            A4 · {templateName} · {metrics ? describePages(metrics.pages) : "1 page"} ·
+            {PAGE_SIZES[data.style.pageSize].label} · {templateName} · {metrics ? describePages(metrics.pages) : "1 page"} ·
             updates as you type
           </p>
           {pageNote && (
@@ -96,7 +96,7 @@ export function PreviewPanel({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-200/60 p-3 sm:p-5">
-        <PreviewFrame onMetrics={setMetrics}>
+        <PreviewFrame onMetrics={setMetrics} pageSize={data.style.pageSize}>
           <ResumePreview data={data} />
         </PreviewFrame>
       </div>

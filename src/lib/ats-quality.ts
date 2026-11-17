@@ -855,22 +855,22 @@ function placeholderCheck(data: ResumeData): AtsCheck {
   };
 }
 
-function skillsEvidenceCheck(data: ResumeData): AtsCheck {
+/**
+ * Which listed skills the resume actually shows in its summary, roles,
+ * projects or certifications. The CV check uses it for its verdict, and the
+ * "remove unevidenced skills" fix uses the same list.
+ */
+export function skillEvidence(data: ResumeData): {
+  skills: string[];
+  supported: string[];
+  unsupported: string[];
+} {
   const skills = [
     ...skillItems(data.skills.languages),
     ...skillItems(data.skills.technologies),
     ...skillItems(data.skills.databases),
   ];
-  if (skills.length === 0) {
-    return {
-      id: "skills-evidence",
-      label: "Skills backed by experience and projects",
-      status: "info",
-      detail: "Add skills to assess whether they are demonstrated in your work.",
-      weight: 11,
-      category: "skills",
-    };
-  }
+  if (skills.length === 0) return { skills, supported: [], unsupported: [] };
 
   const corpus = normalizeTerm(
     [
@@ -896,7 +896,26 @@ function skillsEvidenceCheck(data: ResumeData): AtsCheck {
       return corpus.includes(alias);
     });
   });
-  const unsupported = skills.filter((skill) => !supported.includes(skill));
+  return {
+    skills,
+    supported,
+    unsupported: skills.filter((skill) => !supported.includes(skill)),
+  };
+}
+
+function skillsEvidenceCheck(data: ResumeData): AtsCheck {
+  const { skills, supported, unsupported } = skillEvidence(data);
+  if (skills.length === 0) {
+    return {
+      id: "skills-evidence",
+      label: "Skills backed by experience and projects",
+      status: "info",
+      detail: "Add skills to assess whether they are demonstrated in your work.",
+      weight: 11,
+      category: "skills",
+    };
+  }
+
   const ratio = supported.length / skills.length;
 
   const status: AtsStatus =

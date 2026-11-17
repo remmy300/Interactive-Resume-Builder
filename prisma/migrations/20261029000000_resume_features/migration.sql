@@ -1,4 +1,4 @@
--- Add resume sharing, soft delete, and payload versioning.
+
 ALTER TABLE "Resume" ADD COLUMN "schemaVersion" INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE "Resume" ADD COLUMN "isPublic" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "Resume" ADD COLUMN "publicSlug" TEXT;

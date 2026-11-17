@@ -42,7 +42,10 @@ const SECTION_PATTERNS: Array<[SectionKey, RegExp]> = [
     "education",
     /^(education|academic background|academic qualifications|qualifications)(\s*(&|and)\s*[a-z ]{3,40})?$/i,
   ],
-  ["skills", /^((technical|core|key|professional)\s+)?(skills|competencies|expertise|technologies)$/i],
+  [
+    "skills",
+    /^((technical|core|key|professional)\s+)?(skills|competencies|expertise|technologies)(\s*(&|and)\s*(tools|technologies|frameworks|libraries|languages|platforms))?$/i,
+  ],
   ["projects", /^((personal|selected|key|side)\s+)?projects$/i],
   ["certifications", /^(certifications?|certificates?|licences?|licenses?|awards?)$/i],
 ];
@@ -198,11 +201,25 @@ const STACK_LABEL = /^(technologies|tech(?:nology)? stack|stack|built with|tools
 /** A technology list such as "React · Node.js · PostgreSQL" or "Technologies: …". */
 const isStackLine = (line: string) =>
   // "Title | Live Demo: x | GitHub: y" has bars too, but it is a project header.
-  ((line.match(/\s[·|•]\s/g) ?? []).length >= 2 && !LINK_FIELD.test(line)) ||
+  ((line.match(/\s[·|•]\s/g) ?? []).length >= 2 && !isProjectHeader(line)) ||
   STACK_LABEL.test(line.trim());
 
 /** "Live Demo: [link]" / "GitHub: https://…" fields inside a project header. */
 const LINK_FIELD = /\b(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)\s*:/i;
+
+/** A project header that ends in link words: "Shop | Next.js, React | Live demo · GitHub". */
+const PROJECT_LINK_WORD = String.raw`(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)`;
+const LINK_TAIL = new RegExp(
+  String.raw`\s[|·•]\s${PROJECT_LINK_WORD}(?:\s*[|·•,]\s*${PROJECT_LINK_WORD})*\s*$`,
+  "i",
+);
+// "Resume Studio (career platform) | Next.js, TypeScript, Prisma": a title, a bar
+// and a list of technologies, with no link words.
+const TITLE_WITH_STACK = /^[^|]{2,70}\s\|\s[^|]*,[^|]*$/;
+const isProjectHeader = (line: string) =>
+  LINK_FIELD.test(line) ||
+  LINK_TAIL.test(line.trim()) ||
+  TITLE_WITH_STACK.test(line.trim());
 
 /** A bare technology list without a label: "Next.js, React, TypeScript, Docker". */
 const isCommaStack = (line: string) =>
@@ -329,7 +346,7 @@ function restoreIndentedBullets(text: string): string {
 /** Short, title-like line that is not a sentence and does not start with a verb. */
 function looksLikeTitle(line: string): boolean {
   if (BULLET_START.test(line) || endsSentence(line) || isStackLine(line)) return false;
-  const limit = LINK_FIELD.test(line) ? 260 : 90;
+  const limit = isProjectHeader(line) ? 260 : 90;
   if (line.length > limit || !/^[A-Z0-9]/.test(line)) return false;
   const words = line.split(/\s+/).length;
   return !(words >= 4 && ACTION_VERBS.has(firstWord(line)));
@@ -371,7 +388,7 @@ function splitTitleBlocks(lines: string[]): string[][] {
 function looksLikeHeaderLine(line: string): boolean {
   // A project header with its stack on the same line ("Title | Live Demo: x | …")
   // is longer than a plain title but is still a header.
-  const limit = LINK_FIELD.test(line) ? 260 : 100;
+  const limit = isProjectHeader(line) ? 260 : 100;
   if (BULLET_START.test(line) || line.length > limit) return false;
   if (DATE_RANGE_PATTERN.test(line)) return true;
   if (endsSentence(line)) return false;
@@ -516,6 +533,7 @@ function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry |
       /\b(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)\s*:\s*(?:\[[^\]]*\]|https?:\/\/\S+|\S+)/gi,
       " ",
     )
+    .replace(LINK_TAIL, " ")
     .replace(/[|·•]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

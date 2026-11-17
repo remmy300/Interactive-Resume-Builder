@@ -34,13 +34,13 @@ export default function LoginForm({ redirectTo = "/" }: LoginFormProps) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
       <div className="grid w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl md:grid-cols-2">
-        <section className="hidden flex-col justify-between gap-8 bg-slate-900 p-8 text-white md:flex">
+        <section className="hidden flex-col justify-between gap-8 text-slate-900 p-8 bg-white md:flex">
           <div>
             <p className="text-lg font-bold">Resume Studio</p>
             <h1 className="mt-6 text-3xl font-bold leading-tight">
               Build a resume that gets past the robots.
             </h1>
-            <ul className="mt-6 space-y-3 text-sm text-slate-300">
+            <ul className="mt-6 space-y-3 text-sm text-slate-900">
               {highlights.map((item) => (
                 <li key={item} className="flex gap-2">
                   <span aria-hidden>✓</span>
@@ -49,10 +49,6 @@ export default function LoginForm({ redirectTo = "/" }: LoginFormProps) {
               ))}
             </ul>
           </div>
-          <p className="text-xs text-slate-400">
-            Your data stays private to your account. Export or delete it whenever
-            you want.
-          </p>
         </section>
 
         <section className="space-y-5 p-8">
@@ -75,10 +71,6 @@ export default function LoginForm({ redirectTo = "/" }: LoginFormProps) {
           >
             {isSubmitting ? "Redirecting to Google…" : "Continue with Google"}
           </Button>
-
-          <p className="text-xs text-slate-500">
-            We only store your name, email, and the resumes you create.
-          </p>
         </section>
       </div>
     </main>

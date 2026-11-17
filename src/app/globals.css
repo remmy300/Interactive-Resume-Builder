@@ -36,25 +36,21 @@ body {
 --------------------------------------------------------------------------- */
 
 .cv-page {
-  width: 210mm;
-  min-height: 297mm;
-  padding: 16mm 18mm;
+  width: var(--cv-page-w, 210mm);
+  /* Top and bottom margins come from the page layout (see PreviewFrame and
+     @page), so every page gets the same margin and no line is cut in half. */
+  padding: 0 18mm;
   box-sizing: border-box;
+  font-family: var(--cv-font, inherit);
   background: #ffffff;
   color: #1f2937;
-  font-size: 10.5pt;
-  line-height: 1.45;
+  font-size: calc(10.5pt * var(--cv-scale, 1));
+  line-height: calc(1.45 * var(--cv-line, 1));
   overflow-wrap: anywhere;
 }
 
-@media screen {
-  .cv-page {
-    box-shadow: 0 18px 40px -20px rgba(15, 23, 42, 0.45);
-  }
-}
-
 .cv-header {
-  margin-bottom: 4pt;
+  margin-bottom: calc(4pt * var(--cv-space, 1));
 }
 
 .cv-header--center {
@@ -63,25 +59,25 @@ body {
 
 .cv-name {
   margin: 0;
-  font-size: 22pt;
-  line-height: 1.15;
+  font-size: calc(22pt * var(--cv-scale, 1));
+  line-height: calc(1.15 * var(--cv-line, 1));
   font-weight: 700;
   letter-spacing: -0.015em;
   color: #0f172a;
 }
 
 .cv-role {
-  margin: 2pt 0 0;
-  font-size: 11pt;
+  margin: calc(2pt * var(--cv-space, 1)) 0 0;
+  font-size: calc(11pt * var(--cv-scale, 1));
   font-weight: 600;
   color: #334155;
 }
 
 /* Plain inline text (not a flex row) so ATS parsers read contacts in order. */
 .cv-contact {
-  margin: 8pt 0 0;
-  font-size: 9pt;
-  line-height: 1.5;
+  margin: calc(8pt * var(--cv-space, 1)) 0 0;
+  font-size: calc(9pt * var(--cv-scale, 1));
+  line-height: calc(1.5 * var(--cv-line, 1));
   color: #475569;
 }
 
@@ -95,14 +91,14 @@ body {
 }
 
 .cv-section {
-  margin-top: 14pt;
+  margin-top: calc(14pt * var(--cv-space, 1));
 }
 
 .cv-section__title {
-  margin: 0 0 7pt;
-  padding-bottom: 3pt;
+  margin: 0 0 calc(7pt * var(--cv-space, 1));
+  padding-bottom: calc(3pt * var(--cv-space, 1));
   border-bottom: 1px solid #cbd5e1;
-  font-size: 9.5pt;
+  font-size: calc(9.5pt * var(--cv-scale, 1));
   font-weight: 700;
   letter-spacing: normal;
   text-transform: uppercase;
@@ -110,7 +106,7 @@ body {
 }
 
 .cv-entry {
-  margin-bottom: 8pt;
+  margin-bottom: calc(8pt * var(--cv-space, 1));
   break-inside: avoid;
 }
 
@@ -122,38 +118,38 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 10pt;
+  gap: calc(10pt * var(--cv-space, 1));
 }
 
 .cv-entry__title {
   margin: 0;
-  font-size: 10.5pt;
+  font-size: calc(10.5pt * var(--cv-scale, 1));
   font-weight: 600;
   color: #0f172a;
 }
 
 .cv-entry__meta {
-  font-size: 9pt;
+  font-size: calc(9pt * var(--cv-scale, 1));
   color: #64748b;
   white-space: nowrap;
   text-align: right;
 }
 
 .cv-entry__sub {
-  margin: 1pt 0 0;
-  font-size: 9.5pt;
+  margin: calc(1pt * var(--cv-space, 1)) 0 0;
+  font-size: calc(9.5pt * var(--cv-scale, 1));
   font-style: italic;
   color: #475569;
 }
 
 .cv-bullets {
-  margin: 3pt 0 0;
-  padding-left: 13pt;
+  margin: calc(3pt * var(--cv-space, 1)) 0 0;
+  padding-left: calc(13pt * var(--cv-space, 1));
   list-style: disc;
 }
 
 .cv-bullets li {
-  margin-bottom: 2pt;
+  margin-bottom: calc(2pt * var(--cv-space, 1));
   break-inside: avoid;
 }
 
@@ -166,15 +162,15 @@ body {
 .cv-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 3pt 5pt;
+  gap: calc(3pt * var(--cv-space, 1)) calc(5pt * var(--cv-space, 1));
 }
 
 .cv-tag {
-  padding: 1pt 6pt;
+  padding: calc(1pt * var(--cv-space, 1)) calc(6pt * var(--cv-space, 1));
   border-radius: 999px;
   background: #f1f5f9;
   color: #334155;
-  font-size: 8.5pt;
+  font-size: calc(8.5pt * var(--cv-scale, 1));
 }
 
 .cv-skill-values {
@@ -186,12 +182,12 @@ body {
 }
 
 .cv-skill-row {
-  margin-bottom: 5pt;
+  margin-bottom: calc(5pt * var(--cv-space, 1));
 }
 
 .cv-skill-label {
-  margin: 0 0 2pt;
-  font-size: 8.5pt;
+  margin: 0 0 calc(2pt * var(--cv-space, 1));
+  font-size: calc(8.5pt * var(--cv-scale, 1));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: normal;
@@ -205,29 +201,29 @@ body {
 /* Variants */
 
 .cv--compact .cv-page {
-  padding: 12mm 14mm;
-  font-size: 10pt;
-  line-height: 1.38;
+  padding: 0 14mm;
+  font-size: calc(10pt * var(--cv-scale, 1));
+  line-height: calc(1.38 * var(--cv-line, 1));
 }
 
 .cv--compact .cv-name {
-  font-size: 19pt;
+  font-size: calc(19pt * var(--cv-scale, 1));
 }
 
 .cv--compact .cv-section {
-  margin-top: 10pt;
+  margin-top: calc(10pt * var(--cv-space, 1));
 }
 
 .cv--compact .cv-entry {
-  margin-bottom: 6pt;
+  margin-bottom: calc(6pt * var(--cv-space, 1));
 }
 
 .cv--compact .cv-bullets li {
-  margin-bottom: 1pt;
+  margin-bottom: calc(1pt * var(--cv-space, 1));
 }
 
 .cv--two-column .cv-page {
-  padding: 14mm;
+  padding: 0 14mm;
 }
 
 .cv-columns {
@@ -253,9 +249,9 @@ body {
 /* ATS-safe variant: single column, black text, no colour or shaded chips so
    every parser reads the document in a predictable order. */
 .cv--ats .cv-page {
-  padding: 18mm 20mm;
-  font-size: 11pt;
-  line-height: 1.5;
+  padding: 0 20mm;
+  font-size: calc(11pt * var(--cv-scale, 1));
+  line-height: calc(1.5 * var(--cv-line, 1));
 }
 
 .cv--ats .cv-name,
@@ -273,7 +269,7 @@ body {
 }
 
 .cv--ats .cv-section {
-  margin-top: 12pt;
+  margin-top: calc(12pt * var(--cv-space, 1));
 }
 
 .cv--ats .cv-section__title {
@@ -292,12 +288,164 @@ body {
   font-size: inherit;
 }
 
+/* Classic Professional: serif type, a left-aligned header over a bold rule,
+   ruled section headings with a short accent, justified bullets, and projects
+   on one line with their stack and links. Single column, black text and no
+   graphics, so applicant tracking systems read it in order. */
+.cv--professional .cv-page {
+  padding: 0 16mm;
+  font-family: var(--cv-font, Georgia, "Times New Roman", Times, serif);
+  font-size: calc(10.5pt * var(--cv-scale, 1));
+  line-height: calc(1.5 * var(--cv-line, 1));
+  color: #111111;
+}
+
+.cv--professional .cv-header {
+  margin-bottom: 0;
+  padding-bottom: calc(8pt * var(--cv-space, 1));
+  border-bottom: 2.5pt solid #111111;
+}
+
+.cv--professional .cv-name {
+  font-size: calc(21pt * var(--cv-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #111111;
+}
+
+.cv--professional .cv-role {
+  margin: calc(3pt * var(--cv-space, 1)) 0 0;
+  font-size: calc(9.8pt * var(--cv-scale, 1));
+  font-weight: 400;
+  font-style: italic;
+  color: #4b5563;
+}
+
+.cv--professional .cv-contact {
+  margin: calc(7pt * var(--cv-space, 1)) 0 0;
+  font-size: calc(8.8pt * var(--cv-scale, 1));
+  color: #111111;
+}
+
+.cv--professional .cv-contact a {
+  text-decoration: none;
+}
+
+.cv--professional .cv-contact a[href^="http"] {
+  text-decoration: underline;
+  text-underline-offset: 1px;
+}
+
+.cv--professional .cv-contact__sep {
+  color: #111111;
+}
+
+.cv--professional .cv-section {
+  margin-top: calc(12pt * var(--cv-space, 1));
+}
+
+.cv--professional .cv-section__title {
+  margin: 0 0 calc(6pt * var(--cv-space, 1));
+  padding-bottom: calc(3pt * var(--cv-space, 1));
+  border-bottom: 0.75pt solid #d1d5db;
+  /* The short dark accent is a background, not a positioned pseudo-element: PDF
+     text extraction reads positioned elements after everything else, which would
+     move every heading to the end of its page. */
+  background: linear-gradient(#111111, #111111) left bottom / 26pt 1.5pt no-repeat;
+  background-origin: border-box;
+  font-size: calc(9pt * var(--cv-scale, 1));
+  font-weight: 700;
+  /* No letter-spacing: spaced capitals are read back as "P R O F E S S I O N A L"
+     by PDF text extraction, so parsers miss the heading. */
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: #111111;
+}
+
+.cv--professional .cv-section > p {
+  text-align: justify;
+}
+
+.cv--professional .cv-entry {
+  margin-bottom: calc(7pt * var(--cv-space, 1));
+}
+
+.cv--professional .cv-entry__title {
+  font-size: calc(10pt * var(--cv-scale, 1));
+  font-weight: 700;
+  color: #111111;
+}
+
+.cv--professional .cv-entry__meta {
+  font-size: calc(8pt * var(--cv-scale, 1));
+  color: #4b5563;
+}
+
+.cv--professional .cv-entry__sub {
+  margin-top: 0;
+  font-size: calc(9.2pt * var(--cv-scale, 1));
+  font-style: italic;
+  color: #4b5563;
+}
+
+.cv--professional .cv-bullets {
+  margin-top: calc(3pt * var(--cv-space, 1));
+  padding-left: calc(11pt * var(--cv-space, 1));
+  list-style: disc;
+  text-align: justify;
+  font-size: calc(9.4pt * var(--cv-scale, 1));
+}
+
+.cv--professional .cv-bullets li {
+  margin-bottom: calc(2.5pt * var(--cv-space, 1));
+}
+
+.cv--professional .cv-link {
+  color: #111111;
+  text-decoration: underline;
+}
+
+.cv--professional .cv-skill-flat {
+  margin: 0;
+  font-size: calc(9.2pt * var(--cv-scale, 1));
+  line-height: calc(1.6 * var(--cv-line, 1));
+}
+
+.cv--professional .cv-project-line {
+  margin: 0;
+  font-size: calc(9.4pt * var(--cv-scale, 1));
+}
+
+.cv--professional .cv-project-line .cv-entry__title {
+  font-size: calc(10pt * var(--cv-scale, 1));
+}
+
+.cv--professional .cv-project-line__sep {
+  color: #6b7280;
+}
+
+.cv--professional .cv-project-line__stack {
+  font-size: calc(8.6pt * var(--cv-scale, 1));
+  color: #4b5563;
+}
+
 /* Printing: only the hidden print copy is rendered, without app chrome. */
 
 .print-only {
   display: none;
 }
 
+/* Laid out off-screen so it can be measured; shown only when printing. */
+.print-root {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* No browser margin: PrintPages draws each page, margins included, so Chrome
+   adds no date, title or URL header and footer to the PDF. */
 @page {
   size: A4;
   margin: 0;
@@ -306,10 +454,33 @@ body {
 @media print {
   html,
   body {
-    width: 210mm;
+    width: auto;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
+  }
+
+  /* Print only the resume pages, never the app around them. */
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+
+  .print-root {
+    position: static !important;
+    left: auto !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  .print-page {
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+
+  .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 
   .screen-only,
@@ -344,7 +515,9 @@ body {
 
   .cv-header,
   .cv-section__title,
-  .cv-entry__row {
+  .cv-entry__row,
+  .cv-entry__sub,
+  .cv-project-line {
     break-after: avoid;
     page-break-after: avoid;
     break-inside: avoid;

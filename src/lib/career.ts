@@ -306,18 +306,21 @@ export function applyBulletChanges(
     byEntry.set(change.entryId, [...(byEntry.get(change.entryId) ?? []), change]);
   }
 
+  const rewrite = <T extends { id: string; description: string }>(entry: T): T => {
+    const entryChanges = byEntry.get(entry.id);
+    if (!entryChanges) return entry;
+    const next = entry.description.split("\n").map((line) => {
+      const clean = line.replace(/^\s*[-•*]\s*/, "").trim();
+      const match = entryChanges.find((change) => change.original.trim() === clean);
+      return match ? match.suggested : line;
+    });
+    return { ...entry, description: next.join("\n") };
+  };
+
   return {
     ...data,
-    experience: data.experience.map((entry) => {
-      const entryChanges = byEntry.get(entry.id);
-      if (!entryChanges) return entry;
-      const next = entry.description.split("\n").map((line) => {
-        const clean = line.replace(/^\s*[-•*]\s*/, "").trim();
-        const match = entryChanges.find((change) => change.original.trim() === clean);
-        return match ? match.suggested : line;
-      });
-      return { ...entry, description: next.join("\n") };
-    }),
+    experience: data.experience.map(rewrite),
+    projects: data.projects.map(rewrite),
   };
 }
 

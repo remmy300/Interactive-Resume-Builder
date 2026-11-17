@@ -2,6 +2,7 @@ import {
   createId,
   type ListSection,
   type ResumeData,
+  type ResumeStyle,
   type TemplateId,
 } from "./resume-schema";
 
@@ -9,6 +10,7 @@ export type EditorAction =
   | { type: "replace"; data: ResumeData }
   | { type: "summary"; value: string }
   | { type: "template"; value: TemplateId }
+  | { type: "style"; patch: Partial<ResumeStyle> }
   | { type: "personal"; field: keyof ResumeData["personal"]; value: string }
   | { type: "skills"; field: keyof ResumeData["skills"]; value: string }
   | { type: "entry-add"; section: ListSection }
@@ -57,6 +59,8 @@ export function resumeReducer(data: ResumeData, action: EditorAction): ResumeDat
       return { ...data, summary: action.value };
     case "template":
       return { ...data, template: action.value };
+    case "style":
+      return { ...data, style: { ...data.style, ...action.patch } };
     case "personal":
       return {
         ...data,

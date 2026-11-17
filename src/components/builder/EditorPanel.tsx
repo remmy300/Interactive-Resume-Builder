@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import TextField from "@mui/material/TextField";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DesignControls from "@/components/editor/DesignControls";
 import TemplatePicker from "@/components/editor/TemplatePicker";
 import {
   CertificationsSection,
@@ -96,6 +97,8 @@ export function EditorPanel({
           value={editor.data.template}
           onChange={(value) => editor.dispatch({ type: "template", value })}
         />
+
+        <DesignControls value={editor.data.style} dispatch={editor.dispatch} />
       </div>
 
       <fieldset

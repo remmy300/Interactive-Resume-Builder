@@ -1,4 +1,6 @@
-import type { ResumeData } from "@/lib/resume-schema";
+import type { CSSProperties } from "react";
+import { PAGE_SIZES } from "@/lib/preview";
+import { FONT_CHOICES, type ResumeData } from "@/lib/resume-schema";
 import {
   CertificationList,
   ContactLine,
@@ -15,6 +17,23 @@ interface ResumePreviewProps {
   data: ResumeData;
   /** Print copies never render placeholder copy. */
   isPrint?: boolean;
+}
+
+// How much the "spacing" setting stretches gaps and line height.
+const SPACE = { tight: 0.72, normal: 1, relaxed: 1.3 } as const;
+const LINE = { tight: 0.93, normal: 1, relaxed: 1.1 } as const;
+
+/** Design settings as CSS variables, read by the .cv styles in globals.css. */
+function styleVariables(data: ResumeData): CSSProperties {
+  const { font, fontScale, spacing, pageSize } = data.style;
+  const stack = FONT_CHOICES.find((choice) => choice.id === font)?.stack;
+  return {
+    "--cv-scale": fontScale,
+    "--cv-space": SPACE[spacing],
+    "--cv-line": LINE[spacing],
+    "--cv-page-w": PAGE_SIZES[pageSize].width,
+    ...(stack ? { "--cv-font": stack } : {}),
+  } as CSSProperties;
 }
 
 
@@ -77,21 +96,30 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
 
   const showSummary = hasText(data.summary);
   const isTwoColumn = data.template === "two-column";
+  const isProfessional = data.template === "professional";
 
   const sections = {
     summary: showSummary ? (
-      <Section title="Summary">
+      <Section title={isProfessional ? "Professional Summary" : "Summary"}>
         <p>{data.summary}</p>
       </Section>
     ) : null,
     experience: experienceForDisplay.length ? (
-      <Section title="Experience">
-        <ExperienceList entries={experienceForDisplay} isPrint={isPrint} />
+      <Section title={isProfessional ? "Work Experience" : "Experience"}>
+        <ExperienceList
+          entries={experienceForDisplay}
+          isPrint={isPrint}
+          roleFirst={isProfessional}
+        />
       </Section>
     ) : null,
     projects: projectsForDisplay.length ? (
       <Section title="Projects">
-        <ProjectList entries={projectsForDisplay} isPrint={isPrint} />
+        <ProjectList
+          entries={projectsForDisplay}
+          isPrint={isPrint}
+          inline={isProfessional}
+        />
       </Section>
     ) : null,
     education: educationForDisplay.length ? (
@@ -106,9 +134,13 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
     ) : null,
     skills:
       hasSkills || (!isPrint && data.template !== "two-column") ? (
-        <Section title="Skills">
+        <Section title={isProfessional ? "Technical Skills & Tools" : "Skills"}>
           {hasSkills ? (
-            <SkillsBlock data={data} compact={data.template === "two-column"} />
+            <SkillsBlock
+              data={data}
+              compact={data.template === "two-column"}
+              flat={isProfessional}
+            />
           ) : (
             <p className="cv-placeholder">
               Languages · frameworks · databases · spoken languages
@@ -119,9 +151,17 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
   };
 
   return (
-    <div className={`cv cv--${data.template}`}>
+    <div className={`cv cv--${data.template}`} style={styleVariables(data)}>
+      {/* Paper size. Page margins are drawn by PrintPages, so none are set here and the browser adds no header or footer. */}
+      <style>{`@page { size: ${data.style.pageSize === "letter" ? "letter" : "A4"}; margin: 0; }`}</style>
       <div className="cv-page">
-        <HeaderBlock data={data} isPrint={isPrint} center={!isTwoColumn} />
+        <HeaderBlock
+          data={data}
+          isPrint={isPrint}
+          center={!isTwoColumn && !isProfessional}
+          showContact={!isTwoColumn}
+          emailFirst={isProfessional}
+        />
 
         {isTwoColumn ? (
           <div className="cv-columns">
@@ -139,6 +179,15 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
               {sections.education}
             </div>
           </div>
+        ) : isProfessional ? (
+          <>
+            {sections.summary}
+            {sections.experience}
+            {sections.education}
+            {sections.skills}
+            {sections.projects}
+            {sections.certifications}
+          </>
         ) : (
           <>
             {sections.summary}

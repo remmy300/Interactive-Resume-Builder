@@ -14,7 +14,7 @@ import ImportCvDialog from "@/components/builder/ImportCvDialog";
 import PreviewDialog from "@/components/builder/PreviewDialog";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import TopBar from "@/components/builder/TopBar";
-import { ResumePreview } from "@/components/preview/ResumePreview";
+import { PrintPages } from "@/components/preview/PrintPages";
 import { useResumeEditor } from "@/hooks/useResumeEditor";
 import { analyzeResume } from "@/lib/ats";
 import { openEditorSection, type EditorSectionId } from "@/lib/editor-sections";
@@ -22,7 +22,6 @@ import { checkResumeValidity } from "@/lib/resume-validity";
 import { safeFileName } from "@/utils/Form";
 
 interface BuilderProps {
-  /** Resume to open first (from the My resumes page); "new" starts a blank one. */
   initialResumeId?: string | null;
   user: {
     email: string;
@@ -439,9 +438,7 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
       </main>
 
       {/* Printed instead of the app: real text, clickable links, ATS readable. */}
-      <div className="print-only" aria-hidden="true">
-        <ResumePreview data={editor.data} isPrint />
-      </div>
+      <PrintPages data={editor.data} />
     </>
   );
 }

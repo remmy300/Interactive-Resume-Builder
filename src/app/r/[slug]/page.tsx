@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PrintButton from "@/components/PrintButton";
+import PrintPages from "@/components/preview/PrintPages";
 import ResumePreview from "@/components/preview/ResumePreview";
 import { prisma } from "@/lib/prisma";
 import { normalizeResumeData } from "@/lib/resume-schema";
@@ -59,7 +60,10 @@ export default async function PublicResumePage({ params }: PublicResumePageProps
       </div>
 
       <div className="mx-auto w-fit max-w-full overflow-auto px-2 pb-6">
-        <ResumePreview data={data} />
+        <div className="bg-white py-[14mm] shadow-lg">
+          <ResumePreview data={data} />
+        </div>
+        <PrintPages data={data} />
       </div>
     </main>
   );

@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-export const TEMPLATE_IDS = ["classic", "ats", "compact", "two-column"] as const;
+export const TEMPLATE_IDS = [
+  "professional",
+  "classic",
+  "ats",
+  "compact",
+  "two-column",
+] as const;
 
 export const templateSchema = z.enum(TEMPLATE_IDS);
 
@@ -11,6 +17,12 @@ export const TEMPLATES: Array<{
   name: string;
   description: string;
 }> = [
+  {
+    id: "professional",
+    name: "Classic Professional",
+    description:
+      "Serif type, left-aligned header with a bold rule, ruled section headings, and projects on one line with their stack and links.",
+  },
   {
     id: "classic",
     name: "Classic",
@@ -89,6 +101,78 @@ export const skillsSchema = z.object({
   spoken: z.string().max(500),
 });
 
+/* ------------------------------ Design settings ----------------------------- */
+
+export const FONT_IDS = [
+  "template",
+  "georgia",
+  "times",
+  "garamond",
+  "palatino",
+  "cambria",
+  "arial",
+  "calibri",
+  "verdana",
+  "trebuchet",
+] as const;
+
+export type FontId = (typeof FONT_IDS)[number];
+
+/** Fonts that exist on most computers, so the PDF matches what you see. */
+export const FONT_CHOICES: Array<{ id: FontId; label: string; stack: string }> = [
+  { id: "template", label: "Template default", stack: "" },
+  { id: "georgia", label: "Georgia", stack: 'Georgia, "Times New Roman", serif' },
+  { id: "times", label: "Times New Roman", stack: '"Times New Roman", Times, serif' },
+  {
+    id: "garamond",
+    label: "Garamond",
+    stack: 'Garamond, "EB Garamond", "Palatino Linotype", Georgia, serif',
+  },
+  {
+    id: "palatino",
+    label: "Palatino",
+    stack: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif',
+  },
+  { id: "cambria", label: "Cambria", stack: "Cambria, Georgia, serif" },
+  { id: "arial", label: "Arial", stack: "Arial, Helvetica, sans-serif" },
+  {
+    id: "calibri",
+    label: "Calibri",
+    stack: 'Calibri, Carlito, "Segoe UI", Arial, sans-serif',
+  },
+  { id: "verdana", label: "Verdana", stack: "Verdana, Geneva, sans-serif" },
+  {
+    id: "trebuchet",
+    label: "Trebuchet MS",
+    stack: '"Trebuchet MS", Tahoma, sans-serif',
+  },
+];
+
+export const SPACING_IDS = ["tight", "normal", "relaxed"] as const;
+export const PAGE_SIZE_IDS = ["a4", "letter"] as const;
+
+export const FONT_SCALE_MIN = 0.8;
+export const FONT_SCALE_MAX = 1.4;
+export const FONT_SCALE_STEP = 0.05;
+
+export const styleSchema = z.object({
+  font: z.enum(FONT_IDS).default("template"),
+  /** Multiplies every font size in the resume. 1 is the template's own size. */
+  fontScale: z.number().min(FONT_SCALE_MIN).max(FONT_SCALE_MAX).default(1),
+  /** Space between lines, entries and sections. */
+  spacing: z.enum(SPACING_IDS).default("normal"),
+  pageSize: z.enum(PAGE_SIZE_IDS).default("a4"),
+});
+
+export type ResumeStyle = z.infer<typeof styleSchema>;
+
+export const DEFAULT_STYLE: ResumeStyle = {
+  font: "template",
+  fontScale: 1,
+  spacing: "normal",
+  pageSize: "a4",
+};
+
 export const resumeDataSchema = z.object({
   template: templateSchema,
   summary: z.string().max(2000),
@@ -98,6 +182,7 @@ export const resumeDataSchema = z.object({
   projects: z.array(projectSchema).max(30),
   certifications: z.array(certificationSchema).max(30),
   skills: skillsSchema,
+  style: styleSchema.default(DEFAULT_STYLE),
 });
 
 export type PersonalDetails = z.infer<typeof personalSchema>;
@@ -133,7 +218,7 @@ export function createId(): string {
 
 export function createEmptyResume(): ResumeData {
   return {
-    template: "classic",
+    template: "professional",
     summary: "",
     personal: {
       name: "",
@@ -177,6 +262,7 @@ export function createEmptyResume(): ResumeData {
     ],
     certifications: [],
     skills: { languages: "", technologies: "", databases: "", spoken: "" },
+    style: { ...DEFAULT_STYLE },
   };
 }
 
@@ -279,6 +365,27 @@ export function normalizeResumeData(input: unknown): ResumeData {
       databases: asString(skills.databases),
       spoken: asString(skills.spoken),
     },
+    style: normalizeStyle(root.style),
+  };
+}
+
+/** Design settings from older or hand-edited data, clamped to valid values. */
+export function normalizeStyle(input: unknown): ResumeStyle {
+  const value = asRecord(input);
+  const scale = typeof value.fontScale === "number" ? value.fontScale : DEFAULT_STYLE.fontScale;
+  return {
+    font: (FONT_IDS as readonly unknown[]).includes(value.font)
+      ? (value.font as FontId)
+      : DEFAULT_STYLE.font,
+    fontScale: Number.isFinite(scale)
+      ? Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, Math.round(scale * 100) / 100))
+      : DEFAULT_STYLE.fontScale,
+    spacing: (SPACING_IDS as readonly unknown[]).includes(value.spacing)
+      ? (value.spacing as ResumeStyle["spacing"])
+      : DEFAULT_STYLE.spacing,
+    pageSize: (PAGE_SIZE_IDS as readonly unknown[]).includes(value.pageSize)
+      ? (value.pageSize as ResumeStyle["pageSize"])
+      : DEFAULT_STYLE.pageSize,
   };
 }
 

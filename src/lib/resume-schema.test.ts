@@ -70,3 +70,29 @@ describe("saveResumeSchema", () => {
     expect(saveResumeSchema.safeParse({ title: "CV", data }).success).toBe(false);
   });
 });
+
+describe("design settings", () => {
+  it("gives older resumes the default design", () => {
+    expect(normalizeResumeData({}).style).toEqual({
+      font: "template",
+      fontScale: 1,
+      spacing: "normal",
+      pageSize: "a4",
+    });
+  });
+
+  it("keeps valid choices and repairs invalid ones", () => {
+    const style = normalizeResumeData({
+      style: { font: "garamond", fontScale: 9, spacing: "huge", pageSize: "letter" },
+    }).style;
+    expect(style).toMatchObject({ font: "garamond", fontScale: 1.4, spacing: "normal", pageSize: "letter" });
+  });
+
+  it("accepts a save that has no design settings yet", () => {
+    const empty = createEmptyResume() as Partial<ResumeData>;
+    delete empty.style;
+    const parsed = resumeDataSchema.safeParse(empty);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.style.pageSize).toBe("a4");
+  });
+});

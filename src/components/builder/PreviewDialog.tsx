@@ -45,7 +45,7 @@ export function PreviewDialog({
       </div>
       <div className="flex-1 overflow-auto bg-slate-200 p-4 sm:p-8">
         <div className="mx-auto w-full max-w-[900px]">
-          <PreviewFrame>
+          <PreviewFrame pageSize={data.style.pageSize}>
             <ResumePreview data={data} />
           </PreviewFrame>
         </div>
