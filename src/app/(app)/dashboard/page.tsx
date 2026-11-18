@@ -62,33 +62,46 @@ export default async function DashboardPage() {
   if (!session?.user?.id) redirect("/login?next=/dashboard");
   const userId = session.user.id;
 
-  const [resumeCount, latestResume, coverLetterCount, applications, notesCount] =
-    await Promise.all([
-      prisma.resume.count({ where: { userId, deletedAt: null } }),
-      prisma.resume.findFirst({
-        where: { userId, deletedAt: null },
-        orderBy: { updatedAt: "desc" },
-        select: { id: true, title: true, data: true, isPublic: true },
-      }),
-      prisma.coverLetter.count({ where: { userId } }),
-      prisma.application.findMany({
-        where: { userId },
-        orderBy: { updatedAt: "desc" },
-        take: 5,
-      }),
-      prisma.interviewNote.count({ where: { userId } }),
-    ]);
+  // One batch, so the page waits for a single round trip to the database instead
+  // of a batch followed by another query.
+  const [
+    resumeCount,
+    latestResume,
+    coverLetterCount,
+    applications,
+    notesCount,
+    statusGroups,
+  ] = await Promise.all([
+    prisma.resume.count({ where: { userId, deletedAt: null } }),
+    prisma.resume.findFirst({
+      where: { userId, deletedAt: null },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, title: true, data: true, isPublic: true },
+    }),
+    prisma.coverLetter.count({ where: { userId } }),
+    prisma.application.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+    }),
+    prisma.interviewNote.count({ where: { userId } }),
+    prisma.application.groupBy({
+      by: ["status"],
+      where: { userId },
+      _count: { _all: true },
+    }),
+  ]);
 
-  const allApplications = await prisma.application.findMany({
-    where: { userId },
-    select: { status: true },
-  });
-  const statusCounts = allApplications.reduce<Record<string, number>>(
-    (counts, item) => {
-      counts[item.status] = (counts[item.status] ?? 0) + 1;
+  const statusCounts = statusGroups.reduce<Record<string, number>>(
+    (counts, group) => {
+      counts[group.status] = group._count._all;
       return counts;
     },
     {},
+  );
+  const applicationTotal = statusGroups.reduce(
+    (sum, group) => sum + group._count._all,
+    0,
   );
 
   const report = latestResume ? analyzeResume(normalizeResumeData(latestResume.data)) : null;
@@ -97,7 +110,7 @@ export default async function DashboardPage() {
 
   const stats = [
     { label: "Resumes", value: resumeCount, href: "/dashboard/resume" },
-    { label: "Applications", value: allApplications.length, href: "/dashboard/applications" },
+    { label: "Applications", value: applicationTotal, href: "/dashboard/applications" },
     { label: "Interviews & offers", value: interviewCount, href: "/dashboard/applications" },
     { label: "Cover letters", value: coverLetterCount, href: "/dashboard/cover-letters" },
     { label: "Interview notes", value: notesCount, href: "/dashboard/interview" },

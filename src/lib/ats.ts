@@ -47,7 +47,7 @@ export interface AtsCheck {
   detail: string;
   weight: number;
   category: AtsCategory;
-  /** Concrete lines or items from the resume that triggered the check. */
+
   examples?: string[];
 }
 
@@ -61,9 +61,9 @@ export interface AtsCategoryScore {
 
 export interface AtsReport {
   score: number;
-  /** Score before genuine critical blockers are applied. */
+
   rawScore: number;
-  /** Why the score is held back, if it is. */
+
   caps: string[];
   verdict: string;
   checks: AtsCheck[];
@@ -90,7 +90,6 @@ function verdictFor(score: number): string {
   return "Not ready";
 }
 
-/** Scores a resume against the checks a recruiter and parser care about. */
 export function analyzeResume(data: ResumeData): AtsReport {
   const checks: AtsCheck[] = [];
   const bullets = resumeBullets(data);
@@ -204,7 +203,11 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "contact",
   );
 
-  const links = [data.personal.linkedIn, data.personal.github, data.personal.portfolio];
+  const links = [
+    data.personal.linkedIn,
+    data.personal.github,
+    data.personal.portfolio,
+  ];
   add(
     "links",
     "Online profiles",
@@ -300,7 +303,9 @@ export function analyzeResume(data: ResumeData): AtsReport {
     "content",
   );
 
-  const firstPerson = /\b(i|me|my)\b/i.test([data.summary, ...bullets].join(" "));
+  const firstPerson = /\b(i|me|my)\b/i.test(
+    [data.summary, ...bullets].join(" "),
+  );
   add(
     "pronouns",
     "No first-person pronouns",
@@ -406,12 +411,16 @@ export function analyzeResume(data: ResumeData): AtsReport {
     };
   });
 
-  const statusOf = (id: string) => checks.find((check) => check.id === id)?.status;
+  const statusOf = (id: string) =>
+    checks.find((check) => check.id === id)?.status;
   const caps: Array<[number, string]> = [];
 
   // Genuine blockers only. Everything else is handled by weighted deductions.
   if (statusOf("name") === "fail" || statusOf("email") === "fail") {
-    caps.push([35, "A resume needs a name and a working email address before it can be sent."]);
+    caps.push([
+      35,
+      "A resume needs a name and a working email address before it can be sent.",
+    ]);
   }
   if (statusOf("unresolved-placeholders") === "fail") {
     caps.push([
@@ -421,7 +430,10 @@ export function analyzeResume(data: ResumeData): AtsReport {
   }
   const hasAnyContent =
     data.experience.some(
-      (entry) => hasText(entry.company) || hasText(entry.role) || hasText(entry.description),
+      (entry) =>
+        hasText(entry.company) ||
+        hasText(entry.role) ||
+        hasText(entry.description),
     ) ||
     completeProjects.length > 0 ||
     partialEducation ||

@@ -3,17 +3,8 @@ import { leadingWord } from "./ats-quality";
 import { skillItems } from "./ats-text";
 import type { EducationEntry, ResumeData } from "./resume-schema";
 
-/**
- * One-click fixes for CV check findings. Each one only changes what the resume
- * already says (removing a claim, rewording an opening word, filling a gap the
- * user types in), and the user reviews every change before it is applied.
- */
-
 const hasText = (value: string) => value.trim().length > 0;
 
-/* ------------------------------ unevidenced skills ------------------------- */
-
-/** Removes the named skills from every skills group, keeping the rest in order. */
 export function removeSkills(data: ResumeData, remove: string[]): ResumeData {
   if (remove.length === 0) return data;
   const gone = new Set(remove.map((skill) => normalizeTerm(skill)));
@@ -32,8 +23,6 @@ export function removeSkills(data: ResumeData, remove: string[]): ResumeData {
   };
 }
 
-/* ------------------------------ repeated openings -------------------------- */
-
 export interface WordingFix {
   id: string;
   entryId: string;
@@ -43,8 +32,6 @@ export interface WordingFix {
   reason: string;
 }
 
-// Past-tense synonyms that keep the sentence grammatical, so only the first word
-// changes. The user can still edit the result before applying it.
 const SYNONYMS: Record<string, string[]> = {
   built: ["Developed", "Created", "Engineered"],
   developed: ["Created", "Engineered", "Produced"],
@@ -72,14 +59,16 @@ function bulletLines(description: string): string[] {
     .filter((line) => line && !/^tech(?:nology)? stack\s*:/i.test(line));
 }
 
-/**
- * When the same opening word starts more than two bullets, proposes another word
- * for the extra ones. The first two uses stay as they are.
- */
 export function suggestOpeningVariety(data: ResumeData): WordingFix[] {
-  const bullets: Array<{ entryId: string; label: string; text: string; word: string }> = [];
+  const bullets: Array<{
+    entryId: string;
+    label: string;
+    text: string;
+    word: string;
+  }> = [];
   for (const entry of data.experience) {
-    const label = [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
+    const label =
+      [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
     for (const text of bulletLines(entry.description)) {
       bullets.push({ entryId: entry.id, label, text, word: leadingWord(text) });
     }
@@ -93,7 +82,8 @@ export function suggestOpeningVariety(data: ResumeData): WordingFix[] {
 
   const counts = new Map<string, number>();
   for (const bullet of bullets) {
-    if (bullet.word) counts.set(bullet.word, (counts.get(bullet.word) ?? 0) + 1);
+    if (bullet.word)
+      counts.set(bullet.word, (counts.get(bullet.word) ?? 0) + 1);
   }
 
   const inUse = new Set(bullets.map((bullet) => bullet.word));
@@ -126,8 +116,6 @@ export function suggestOpeningVariety(data: ResumeData): WordingFix[] {
   return fixes;
 }
 
-/* --------------------------------- contact -------------------------------- */
-
 export function setLocation(data: ResumeData, location: string): ResumeData {
   return { ...data, personal: { ...data.personal, location: location.trim() } };
 }
@@ -137,10 +125,13 @@ export function setLocation(data: ResumeData, location: string): ResumeData {
 const QUALIFICATION_WORDS =
   /\b(graduate|diploma|certificate|degree|bachelor|master|bsc|msc|ba|ma|mba|phd|kcse|a-levels?|high ?school)\b/i;
 
-/** The first education entry that is missing its institution or its qualification. */
 export function incompleteEducation(
   data: ResumeData,
-): { entry: EducationEntry; institution: string; qualification: string } | null {
+): {
+  entry: EducationEntry;
+  institution: string;
+  qualification: string;
+} | null {
   const entry = data.education.find(
     (item) =>
       (hasText(item.college) || hasText(item.degree)) &&
@@ -148,9 +139,10 @@ export function incompleteEducation(
   );
   if (!entry) return null;
 
-  // "Highschool Graduate" is a qualification that was typed into the school field.
   const collegeIsQualification =
-    hasText(entry.college) && !hasText(entry.degree) && QUALIFICATION_WORDS.test(entry.college);
+    hasText(entry.college) &&
+    !hasText(entry.degree) &&
+    QUALIFICATION_WORDS.test(entry.college);
   return {
     entry,
     institution: collegeIsQualification ? "" : entry.college,
@@ -168,7 +160,11 @@ export function completeEducation(
     ...data,
     education: data.education.map((entry) =>
       entry.id === entryId
-        ? { ...entry, college: institution.trim(), degree: qualification.trim() }
+        ? {
+            ...entry,
+            college: institution.trim(),
+            degree: qualification.trim(),
+          }
         : entry,
     ),
   };

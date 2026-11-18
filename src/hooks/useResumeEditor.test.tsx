@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyResume, normalizeResumeData } from "@/lib/resume-schema";
@@ -26,7 +25,9 @@ function fakeServer() {
       const sorted = JSON.parse(
         JSON.stringify(body.data, (_k, v) =>
           v && typeof v === "object" && !Array.isArray(v)
-            ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+            ? Object.fromEntries(
+                Object.entries(v).sort(([a], [b]) => a.localeCompare(b)),
+              )
             : v,
         ),
       );
@@ -58,11 +59,25 @@ describe("useResumeEditor saving", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  async function fillValidResume(result: { current: ReturnType<typeof useResumeEditor> }) {
+  async function fillValidResume(result: {
+    current: ReturnType<typeof useResumeEditor>;
+  }) {
     act(() => {
-      result.current.dispatch({ type: "personal", field: "name", value: "Ada Lovelace" });
-      result.current.dispatch({ type: "personal", field: "email", value: "ada@example.com" });
-      result.current.dispatch({ type: "skills", field: "technologies", value: "React" });
+      result.current.dispatch({
+        type: "personal",
+        field: "name",
+        value: "Ada Lovelace",
+      });
+      result.current.dispatch({
+        type: "personal",
+        field: "email",
+        value: "ada@example.com",
+      });
+      result.current.dispatch({
+        type: "skills",
+        field: "technologies",
+        value: "React",
+      });
     });
   }
 
@@ -82,7 +97,9 @@ describe("useResumeEditor saving", () => {
 
     expect(result.current.isSaving).toBe(false);
     expect(result.current.isDirty).toBe(false);
-    expect(server.calls.filter((c) => c.startsWith("POST") || c.startsWith("PATCH"))).toHaveLength(1);
+    expect(
+      server.calls.filter((c) => c.startsWith("POST") || c.startsWith("PATCH")),
+    ).toHaveLength(1);
   }, 10000);
 
   it("does not keep saving a title with trailing whitespace", async () => {
@@ -97,7 +114,9 @@ describe("useResumeEditor saving", () => {
     await new Promise((resolve) => setTimeout(resolve, 3500));
 
     expect(result.current.isDirty).toBe(false);
-    expect(server.calls.filter((c) => c.startsWith("POST") || c.startsWith("PATCH"))).toHaveLength(1);
+    expect(
+      server.calls.filter((c) => c.startsWith("POST") || c.startsWith("PATCH")),
+    ).toHaveLength(1);
   }, 10000);
 
   it("waits for an in-flight save instead of ignoring the click", async () => {
@@ -146,7 +165,9 @@ describe("useResumeEditor import", () => {
 
     expect(outcome.saved).toBe(true);
     expect(result.current.resumeId).toBe("r1");
-    expect(result.current.items.map((item) => item.title)).toEqual(["Ada — CV"]);
+    expect(result.current.items.map((item) => item.title)).toEqual([
+      "Ada — CV",
+    ]);
     expect(result.current.isDirty).toBe(false);
     expect(result.current.isSaving).toBe(false);
   });

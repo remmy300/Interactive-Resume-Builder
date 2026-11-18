@@ -12,9 +12,6 @@ export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | null = null;
 
-/**
- * Validated, cached server environment.
- */
 export function validateEnv(): Env {
   if (cached) return cached;
 

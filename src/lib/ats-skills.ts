@@ -1,32 +1,18 @@
-/**
- * Curated skill vocabulary used by job-description keyword extraction.
- *
- * The extractor is deliberately precision-first: a term is only treated as a
- * job requirement when it is a known skill/tool, or when it looks technical
- * (for example "S3", "C++", "ETL" or "GraphQL"). This keeps ordinary prose,
- * company names, locations, and benefits out of the missing-skills list.
- */
-
 export interface SkillDefinition {
-  /** Normalised canonical term used for matching. */
   term: string;
-  /** Human readable label shown in the UI. */
+
   display: string;
-  /** Every normalised alias that should match this skill. */
+
   aliases: string[];
 }
 
 interface SkillInput {
   display: string;
   aliases?: string[];
-  /**
-   * Broader terms that should count as a match on the resume, but must not take
-   * over the display name when the posting mentions a more specific skill.
-   */
+
   related?: string[];
 }
 
-/** Lowercase and strip punctuation while keeping symbols used in tech names. */
 export function normalizeTerm(value: string): string {
   return value
     .toLowerCase()
@@ -36,7 +22,6 @@ export function normalizeTerm(value: string): string {
 }
 
 const SKILL_INPUTS: SkillInput[] = [
-  /* ----------------------------- Languages ------------------------------- */
   { display: "JavaScript", aliases: ["js", "ecmascript"] },
   { display: "TypeScript", aliases: ["ts"] },
   { display: "Python" },
@@ -65,7 +50,15 @@ const SKILL_INPUTS: SkillInput[] = [
   { display: "PowerShell" },
   {
     display: "SQL",
-    related: ["postgresql", "postgres", "mysql", "sql server", "sqlite", "mssql", "mariadb"],
+    related: [
+      "postgresql",
+      "postgres",
+      "mysql",
+      "sql server",
+      "sqlite",
+      "mssql",
+      "mariadb",
+    ],
   },
   { display: "HTML" },
   { display: "CSS", aliases: ["css3"] },
@@ -332,7 +325,11 @@ const SKILL_INPUTS: SkillInput[] = [
   { display: "MySQL" },
   { display: "MariaDB" },
   { display: "MongoDB", aliases: ["mongo"] },
-  { display: "NoSQL", aliases: ["no sql"], related: ["mongodb", "dynamodb", "redis"] },
+  {
+    display: "NoSQL",
+    aliases: ["no sql"],
+    related: ["mongodb", "dynamodb", "redis"],
+  },
   { display: "SQLite" },
   { display: "Oracle", aliases: ["oracle db", "oracle database"] },
   { display: "SQL Server", aliases: ["mssql", "microsoft sql server"] },
@@ -671,8 +668,14 @@ const SKILL_INPUTS: SkillInput[] = [
   // A "Software Developer" role already shows software development, so the job
   // title on the resume counts as a match. These are resume-side only: a posting
   // that says "Software Engineer" in passing does not add a requirement.
-  { display: "Software Engineering", related: ["software engineer", "software developer"] },
-  { display: "Software Development", related: ["software developer", "software engineer"] },
+  {
+    display: "Software Engineering",
+    related: ["software engineer", "software developer"],
+  },
+  {
+    display: "Software Development",
+    related: ["software developer", "software engineer"],
+  },
   { display: "Business Analysis" },
   { display: "Requirements Gathering", aliases: ["requirements analysis"] },
   { display: "Process Improvement" },
@@ -850,7 +853,8 @@ export const isLanguageLevel = (value: string) =>
  * location, or ordinary word. Deliberately conservative.
  */
 export function looksTechnical(raw: string, term: string): boolean {
-  if (term.length < 2 || /^\d+$/.test(term) || isLanguageLevel(term)) return false;
+  if (term.length < 2 || /^\d+$/.test(term) || isLanguageLevel(term))
+    return false;
   if (/[0-9+#]/.test(term)) return true;
   if (/[A-Z]/.test(raw.slice(1))) return true;
   if (

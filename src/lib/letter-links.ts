@@ -10,10 +10,6 @@ export type LetterSegment =
 
 const LINK_PATTERN = /\[([^\]\n]{1,80})\]\((https?:\/\/[^\s()]+)\)/g;
 
-/**
- * Turns user input such as "github.com/ada" into a safe http(s) address, or
- * returns null when it is not a usable web link.
- */
 export function normalizeLinkUrl(raw: string): string | null {
   const value = raw.trim();
   if (!value || /\s/.test(value)) return null;
@@ -31,16 +27,18 @@ export function normalizeLinkUrl(raw: string): string | null {
   }
 }
 
-/** Brackets and line breaks would break the link syntax, so strip them. */
 export function cleanLinkTitle(title: string): string {
-  return title.replace(/[[\]\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+  return title
+    .replace(/[[\]\n\r]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
 }
 
 export function formatLink(title: string, href: string): string {
   return `[${title}](${href})`;
 }
 
-/** Replaces the selection (or inserts at the cursor) with a link. */
 export function insertLink(
   content: string,
   start: number,
@@ -62,19 +60,22 @@ export function parseLetter(content: string): LetterSegment[] {
   let last = 0;
   for (const match of content.matchAll(LINK_PATTERN)) {
     const index = match.index ?? 0;
-    if (index > last) segments.push({ type: "text", text: content.slice(last, index) });
+    if (index > last)
+      segments.push({ type: "text", text: content.slice(last, index) });
     segments.push({ type: "link", text: match[1], href: match[2] });
     last = index + match[0].length;
   }
-  if (last < content.length) segments.push({ type: "text", text: content.slice(last) });
+  if (last < content.length)
+    segments.push({ type: "text", text: content.slice(last) });
   return segments;
 }
 
-/** Plain-text copy for places that cannot hold links: "Title (address)". */
 export function toPlainText(content: string): string {
   return parseLetter(content)
     .map((segment) =>
-      segment.type === "link" ? `${segment.text} (${segment.href})` : segment.text,
+      segment.type === "link"
+        ? `${segment.text} (${segment.href})`
+        : segment.text,
     )
     .join("");
 }
@@ -86,7 +87,6 @@ const escapeHtml = (value: string) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-/** HTML copy for pasting into an email client, with titled links. */
 export function toHtml(content: string): string {
   const body = parseLetter(content)
     .map((segment) =>

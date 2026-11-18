@@ -5,12 +5,9 @@
  */
 export interface LinkRef {
   url: string;
-  /**
-   * Visible text the link is attached to: the words of the link itself for Word
-   * and Markdown ("Live Demo"), or the whole line for PDFs ("Live Demo | Github").
-   */
+
   label: string;
-  /** PDFs only: links with the same key sit on the same visual line. */
+
   lineKey?: string;
 }
 
@@ -28,28 +25,36 @@ const stripTags = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** Links from the HTML Word documents are converted to. */
 export function linksFromHtml(html: string): LinkRef[] {
   const links: LinkRef[] = [];
-  for (const match of html.matchAll(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+  for (const match of html.matchAll(
+    /<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+  )) {
     const url = match[1].replace(/&amp;/g, "&");
     if (isWebUrl(url)) links.push({ url, label: stripTags(match[2]) });
   }
   return links;
 }
 
-/** Turns [label](address) into plain label text and reports the addresses. */
-export function linksFromMarkdown(text: string): { text: string; links: LinkRef[] } {
+export function linksFromMarkdown(text: string): {
+  text: string;
+  links: LinkRef[];
+} {
   const links: LinkRef[] = [];
-  const plain = text.replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, label, url) => {
-    links.push({ url, label: String(label).trim() });
-    return label;
-  });
+  const plain = text.replace(
+    /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    (_match, label, url) => {
+      links.push({ url, label: String(label).trim() });
+      return label;
+    },
+  );
   return { text: plain, links };
 }
 
-/** Splits a project's addresses into its live link and its code repository. */
-export function classifyProjectLinks(urls: string[]): { link: string; github: string } {
+export function classifyProjectLinks(urls: string[]): {
+  link: string;
+  github: string;
+} {
   let link = "";
   let github = "";
   for (const raw of urls) {

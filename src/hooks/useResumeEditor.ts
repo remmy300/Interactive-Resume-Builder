@@ -121,8 +121,7 @@ export function useResumeEditor(initialResumeId?: string | null) {
       try {
         const list = await apiFetch<ListResponse>("/api/resumes?take=50");
         setItems(list.items);
-        // "new" starts a blank draft; a known id opens that resume; otherwise the
-        // most recently edited one opens.
+
         const requested =
           initialResumeId && initialResumeId !== "new"
             ? list.items.find((item) => item.id === initialResumeId)

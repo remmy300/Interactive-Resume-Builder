@@ -4,12 +4,6 @@ import { hasText, resumeBullets, resumeText, skillItems } from "./ats-text";
 import type { AtsCheck, AtsStatus } from "./ats";
 import type { ResumeData } from "./resume-schema";
 
-/**
- * Content-quality checks. These look at what the resume actually says, not only
- * whether a section exists. The emphasis is on evidence: a concrete contribution
- * can be valuable without a percentage, and technical work counts as impact.
- */
-
 const MAX_EXAMPLES = 3;
 
 const WEAK_PHRASES =
@@ -18,28 +12,14 @@ const WEAK_PHRASES =
 const CLICHES =
   /\b(hard[- ]?working|team player|results[- ]driven|detail[- ]oriented|self[- ]motivated|go[- ]getter|fast learner|quick learner|passionate about|dynamic|synergy|think outside the box|excellent communication skills|strong work ethic|highly motivated)\b/i;
 
-/**
- * Placeholder or instruction text that should never be sent to an employer.
- * The builder and job-match tool use bracketed prompt text; users sometimes
- * leave it in the document.
- */
 const PLACEHOLDER_PATTERN =
   /\[[^\]]*(?:add|insert|replace|your|metric|result|query|todo|tbd|example|company|role|date)[^\]]*\]|\b(?:lorem ipsum|add a measurable result|one real sql query)\b/gi;
 
-// Keep TODO/TBD/FIXME case-sensitive so a legitimate "Todo app" project does
-// not fail the check.
 const EXPLICIT_PLACEHOLDER = /\b(?:TODO|TBD|FIXME)\b/g;
 
-// A figure that says something about scale or impact. A bare year such as
-// "2023" is a date, not a result.
 const METRIC =
   /(\d+(\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(,\d{3})+\b|\b(?!(19|20)\d{2}\b)\d+\+?\b)/;
 
-/**
- * Concrete technical or operational evidence. These terms count as impact even
- * when the bullet has no percentage: implementing a feature, integrating a
- * service, fixing a bottleneck and adding tests are all meaningful outcomes.
- */
 const EVIDENCE_TERMS =
   /\b(?:api|apis|endpoint|endpoints|database|databases|schema|service|services|microservices?|architecture|pipeline|pipelines|ci\/cd|deployment|deployments|docker|kubernetes|aws|azure|gcp|cloud|server|servers|backend|frontend|react|next\.?js|typescript|javascript|python|node\.?js|sql|postgres(?:ql)?|mysql|mongodb|redis|graphql|rest|grpc|webhook|webhooks|queue|queues|cache|caching|authentication|oauth|authorization|security|encryption|tests?|testing|unit tests?|integration tests?|code review|refactor|refactoring|migration|migrations|performance|latency|throughput|accessibility|responsive|component|components|library|libraries|design system|feature|features|integration|integrations|automation|automated|script|scripts|framework|frameworks|process|workflow|workflows|campaign|campaigns|curriculum|patients?|students?|clients?|customers?|invoices?|compliance|audit|audits|budget|budgets|forecast|forecasting|contract|contracts|supply chain|inventory|logistics|policy|policies|training|program|programs|event|events|reports?|analysis|research|stakeholders?|vendors?|operations|revenue|cost|costs|sales|marketing)\b/i;
 
@@ -199,10 +179,7 @@ const stripBullet = (line: string) =>
 const wordsOf = (line: string) => line.split(/\s+/).filter(Boolean);
 
 const countBulletLines = (text: string) =>
-  text
-    .split("\n")
-    .map(stripBullet)
-    .filter(Boolean).length;
+  text.split("\n").map(stripBullet).filter(Boolean).length;
 
 export const isQuantified = (line: string) => METRIC.test(line);
 
@@ -213,7 +190,11 @@ export function leadingWord(line: string): string {
 function isActionWord(word: string): boolean {
   const base = word.replace(/[^a-z]/g, "");
   if (!base) return false;
-  if (ACTION_VERBS.has(base) || IRREGULAR_VERBS.has(base) || GERUND_VERBS.has(base)) {
+  if (
+    ACTION_VERBS.has(base) ||
+    IRREGULAR_VERBS.has(base) ||
+    GERUND_VERBS.has(base)
+  ) {
     return true;
   }
   if (base.endsWith("ed") && base.length >= 4 && !NON_VERB_ED.has(base)) {
@@ -314,7 +295,8 @@ function strengthFor(
   metric: boolean,
   evidence: boolean,
 ): number {
-  const concrete = tokens.length >= 6 || metric || (evidence && tokens.length >= 4);
+  const concrete =
+    tokens.length >= 6 || metric || (evidence && tokens.length >= 4);
 
   if (action === "strong") {
     if (metric || evidence) return 3;
@@ -415,7 +397,8 @@ function dateCheck(data: ResumeData, now: Date): AtsCheck {
       id: "dates",
       label: "Dates and career timeline",
       status: "info",
-      detail: "No dated roles to assess yet. Add start and end dates when you add experience.",
+      detail:
+        "No dated roles to assess yet. Add start and end dates when you add experience.",
       weight: 5,
       category: "structure",
     };
@@ -432,7 +415,9 @@ function dateCheck(data: ResumeData, now: Date): AtsCheck {
       warnings.push(`${span.label}: the start date is in the future.`);
     }
     if (span.start !== null && span.end === null) {
-      warnings.push(`${span.label}: add an end date or mark the role as current.`);
+      warnings.push(
+        `${span.label}: add an end date or mark the role as current.`,
+      );
     }
     if (span.start !== null && span.end !== null && span.end < span.start) {
       failures.push(`${span.label}: the end date is before the start date.`);
@@ -505,7 +490,8 @@ function outcomesCheck(
   }
 
   const total = analyses.length;
-  const average = analyses.reduce((sum, item) => sum + item.strength, 0) / total;
+  const average =
+    analyses.reduce((sum, item) => sum + item.strength, 0) / total;
   // A concrete contribution counts even without a metric; technical evidence
   // raises a bullet further but is not required.
   const strong = analyses.filter((item) => item.strength >= 2).length;
@@ -572,7 +558,9 @@ function actionCheck(
   const total = analyses.length;
   const strong = analyses.filter((item) => item.action === "strong").length;
   const passive = analyses.filter((item) => item.action === "passive");
-  const responsibility = analyses.filter((item) => item.action === "responsibility");
+  const responsibility = analyses.filter(
+    (item) => item.action === "responsibility",
+  );
   const vague = analyses.filter((item) => item.action === "vague");
   const strongRatio = strong / total;
 
@@ -611,7 +599,8 @@ function metricsCheck(analyses: BulletAnalysis[]): AtsCheck {
       id: "metrics",
       label: "Credible metrics",
       status: "info",
-      detail: "Metrics are optional. Add bullets first; numbers can come later.",
+      detail:
+        "Metrics are optional. Add bullets first; numbers can come later.",
       weight: 2,
       category: "experience",
     };
@@ -783,12 +772,16 @@ function roleBulletCheck(data: ResumeData): AtsCheck {
   );
 
   const examples = [
-    ...empty.map((entry) => `${entry.company || entry.role}: no achievements listed.`),
+    ...empty.map(
+      (entry) => `${entry.company || entry.role}: no achievements listed.`,
+    ),
     ...thin.map(
-      (entry) => `${entry.company || entry.role}: only one bullet. Add at least two or three.`,
+      (entry) =>
+        `${entry.company || entry.role}: only one bullet. Add at least two or three.`,
     ),
     ...heavy.map(
-      (entry) => `${entry.company || entry.role}: more than 8 bullets. Keep the strongest 4–6.`,
+      (entry) =>
+        `${entry.company || entry.role}: more than 8 bullets. Keep the strongest 4–6.`,
     ),
   ];
   const status: AtsStatus = empty.length
@@ -910,7 +903,8 @@ function skillsEvidenceCheck(data: ResumeData): AtsCheck {
       id: "skills-evidence",
       label: "Skills backed by experience and projects",
       status: "info",
-      detail: "Add skills to assess whether they are demonstrated in your work.",
+      detail:
+        "Add skills to assess whether they are demonstrated in your work.",
       weight: 11,
       category: "skills",
     };
