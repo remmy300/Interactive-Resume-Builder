@@ -276,7 +276,7 @@ export function analyzeResume(data: ResumeData): AtsReport {
       : skills > 0
         ? `${skills} skill${skills === 1 ? "" : "s"} listed. Add the tools and methods you actually use.`
         : "List the tools, languages, or methods you actually use.",
-    9,
+    8,
     "skills",
   );
 
@@ -318,11 +318,20 @@ export function analyzeResume(data: ResumeData): AtsReport {
   );
 
   /* ----------------------------- Structure ------------------------------ */
+  const SECONDARY =
+    /\b(secondary|high ?school|senior school|kcse|kcpe|a-?levels?|o-?levels?|gcse|ged)\b/i;
+  const onlySecondary =
+    completeEducation.length > 0 &&
+    completeEducation.every((entry) =>
+      SECONDARY.test(`${entry.college} ${entry.degree}`),
+    );
   add(
     "education",
     "Education",
-    completeEducation.length > 0 ? "pass" : "warn",
-    completeEducation.length > 0
+    completeEducation.length > 0 && !onlySecondary ? "pass" : "warn",
+    onlySecondary
+      ? "Only secondary school is listed. Employers usually expect a degree, diploma, bootcamp or certification here. Add one if you have it (including online courses and certificates)."
+      : completeEducation.length > 0
       ? "Each listed education entry has an institution and a qualification, degree, or course."
       : partialEducation
         ? "Add both the institution and the qualification, degree, or course for each education entry."

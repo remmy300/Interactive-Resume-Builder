@@ -14,13 +14,18 @@ import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import type { ResumeData } from "@/lib/resume-schema";
 import { useResumeLibrary, type LibraryRecord } from "@/hooks/useResumeLibrary";
 import CheckFixes from "@/components/dashboard/CheckFixes";
-import { CheckExamples, ScoreCaps, SCORE_NOTE } from "@/components/dashboard/CheckExamples";
+import { CheckExamples } from "@/components/dashboard/CheckExamples";
+import ScoreOverview from "@/components/dashboard/ScoreOverview";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 
 const STATUS = {
   pass: { icon: CheckCircleIcon, className: "text-emerald-600", label: "Pass" },
-  warn: { icon: WarningAmberIcon, className: "text-amber-600", label: "Improve" },
+  warn: {
+    icon: WarningAmberIcon,
+    className: "text-amber-600",
+    label: "Improve",
+  },
   fail: { icon: CancelIcon, className: "text-red-600", label: "Fix" },
   info: { icon: InfoOutlinedIcon, className: "text-slate-500", label: "Note" },
 } satisfies Record<
@@ -40,27 +45,33 @@ export function CvCheckClient() {
     message: string;
   } | null>(null);
 
-  /** Saves a one-click fix to this resume; the score is recalculated from the saved copy. */
   const applyFix = async (next: ResumeData, message: string) => {
     const record = library.record;
     if (!record) return;
     setIsSaving(true);
     try {
-      const updated = await apiFetch<LibraryRecord>(`/api/resumes/${record.id}`, {
-        method: "PATCH",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({
-          title: record.title,
-          data: next,
-          updatedAt: record.updatedAt,
-        }),
-      });
+      const updated = await apiFetch<LibraryRecord>(
+        `/api/resumes/${record.id}`,
+        {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({
+            title: record.title,
+            data: next,
+            updatedAt: record.updatedAt,
+          }),
+        },
+      );
       library.setRecord(updated);
-      setNotice({ severity: "success", message: `${message} The check below is updated.` });
+      setNotice({
+        severity: "success",
+        message: `${message} The check below is updated.`,
+      });
     } catch (error) {
       setNotice({
         severity: "error",
-        message: error instanceof Error ? error.message : "Could not save the change.",
+        message:
+          error instanceof Error ? error.message : "Could not save the change.",
       });
     } finally {
       setIsSaving(false);
@@ -93,7 +104,11 @@ export function CvCheckClient() {
       />
 
       {notice && (
-        <Alert severity={notice.severity} className="mb-4" onClose={() => setNotice(null)}>
+        <Alert
+          severity={notice.severity}
+          className="mb-4"
+          onClose={() => setNotice(null)}
+        >
           {notice.message}
         </Alert>
       )}
@@ -108,7 +123,9 @@ export function CvCheckClient() {
         <LinearProgress sx={{ borderRadius: 1 }} />
       ) : library.items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <h2 className="text-base font-semibold text-slate-900">No resume yet</h2>
+          <h2 className="text-base font-semibold text-slate-900">
+            No resume yet
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
             Create a resume or import an existing CV, then run the check.
           </p>
@@ -132,45 +149,18 @@ export function CvCheckClient() {
             </div>
           </div>
 
-          {library.isLoadingRecord && <LinearProgress sx={{ borderRadius: 1 }} />}
+          {library.isLoadingRecord && (
+            <LinearProgress sx={{ borderRadius: 1 }} />
+          )}
 
           {report && (
             <>
-              <section className="rounded-xl border border-slate-200 bg-white p-5">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Resume quality score
-                    </p>
-                    <p className="mt-1 text-5xl font-bold text-slate-900">
-                      {report.score}
-                      <span className="text-xl font-semibold text-slate-500">/100</span>
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-slate-900">
-                      {report.verdict}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      An internal resume-quality assessment, not an ATS pass prediction.
-                    </p>
-                  </div>
-                </div>
-
-                <ScoreCaps report={report} />
-                <p className="mt-3 text-xs text-slate-500">{SCORE_NOTE}</p>
-
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-slate-900"
-                    style={{ width: `${report.score}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  {report.passed} passing · {report.warnings} to improve ·{" "}
-                  {report.failed} to fix · {report.info} notes
-                </p>
-              </section>
+              <ScoreOverview
+                report={report}
+                resumeTitle={library.record?.title ?? ""}
+                jobTitle={library.record?.data.personal.title ?? ""}
+                improvements={actionable.length}
+              />
 
               <section className="rounded-xl border border-slate-200 bg-white p-5">
                 <h2 className="text-base font-semibold text-slate-900">
@@ -204,17 +194,21 @@ export function CvCheckClient() {
                 </ul>
               </section>
 
-              <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <section
+                id="improvements"
+                className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-5"
+              >
                 <h2 className="text-base font-semibold text-slate-900">
                   Highest-priority improvements
                 </h2>
                 {actionable.length === 0 ? (
                   <p className="mt-2 text-sm text-emerald-700">
-                    Everything checks out. Tailor the resume to a job description next.
+                    Everything checks out. Tailor the resume to a job
+                    description next.
                   </p>
                 ) : (
                   <ul className="mt-3 divide-y divide-slate-100">
-                    {actionable.slice(0, 6).map((check) => {
+                    {actionable.slice(0, 10).map((check) => {
                       const meta = STATUS[check.status];
                       const Icon = meta.icon;
                       return (
@@ -241,7 +235,9 @@ export function CvCheckClient() {
                                 checkId={check.id}
                                 data={library.record.data}
                                 saving={isSaving}
-                                onApply={(next, message) => void applyFix(next, message)}
+                                onApply={(next, message) =>
+                                  void applyFix(next, message)
+                                }
                               />
                             )}
                           </div>
@@ -305,7 +301,9 @@ export function CvCheckClient() {
                                   {meta.label}
                                 </span>
                               </div>
-                              <p className="text-sm text-slate-600">{check.detail}</p>
+                              <p className="text-sm text-slate-600">
+                                {check.detail}
+                              </p>
                               <CheckExamples examples={check.examples} />
                             </div>
                           </li>

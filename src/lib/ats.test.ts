@@ -300,7 +300,7 @@ describe("analyzeResume honesty", () => {
     expect(find(data, "cliches")?.status).not.toBe("pass");
   });
 
-  it("treats metrics as a bonus rather than a requirement", () => {
+  it("scores real technical work well but asks for results and numbers", () => {
     const data = completeResume();
     data.experience[0].description = [
       "Implemented OAuth login with Google and GitHub providers.",
@@ -309,9 +309,39 @@ describe("analyzeResume honesty", () => {
       "Refactored the API layer to support versioned endpoints.",
     ].join("\n");
 
+    // Concrete work, but no result and no number: a recruiter would ask "so what changed?".
+    expect(find(data, "outcomes")?.status).toBe("warn");
+    expect(find(data, "metrics")?.status).toBe("warn");
+    expect(analyzeResume(data).score).toBeGreaterThan(60);
+  });
+
+  it("does not treat scope counts like '5 apps' or 'team of 10' as metrics", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "Built and deployed 5 full-stack apps with React and Node.js",
+      "Worked in a team of 10 on a live product with REST APIs",
+      "Delivered 3 features using TanStack Query for caching",
+    ].join("\n");
+    expect(find(data, "metrics")?.status).toBe("warn");
+  });
+
+  it("counts percentages, money and user numbers as credible metrics", () => {
+    const data = completeResume();
+    data.experience[0].description = [
+      "Reduced page load time by 38% across the dashboard",
+      "Handled 20,000 requests per day after moving to a cache",
+      "Cut monthly hosting cost by $400 with a smaller server",
+    ].join("\n");
+    expect(find(data, "metrics")?.status).toBe("pass");
     expect(find(data, "outcomes")?.status).toBe("pass");
-    expect(find(data, "metrics")?.status).toBe("info");
-    expect(analyzeResume(data).score).toBeGreaterThan(70);
+  });
+
+  it("flags a resume that lists only secondary school", () => {
+    const data = completeResume();
+    data.education = [
+      { id: "s", college: "Eldoro Girls High School", degree: "Kenya Certificate of Secondary Education (KCSE)", startDate: "", endDate: "", current: false },
+    ];
+    expect(find(data, "education")?.status).toBe("warn");
   });
 
   it("does not treat a bare year as a credible metric", () => {

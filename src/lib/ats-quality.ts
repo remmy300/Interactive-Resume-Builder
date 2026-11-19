@@ -17,8 +17,15 @@ const PLACEHOLDER_PATTERN =
 
 const EXPLICIT_PLACEHOLDER = /\b(?:TODO|TBD|FIXME)\b/g;
 
+// A credible metric is a result with a unit: a percentage, money, a multiple,
+// a large count, or a number of people/requests/time. A bare "5 apps" or
+// "team of 10" is scope, not impact, so it does not count.
 const METRIC =
-  /(\d+(\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(,\d{3})+\b|\b(?!(19|20)\d{2}\b)\d+\+?\b)/;
+  /(\d+(\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(,\d{3})+\b|\b\d+\+?\s?(?:users?|customers?|clients?|visitors?|requests?|orders?|transactions?|records?|sessions?|downloads?|views?|ms|milliseconds?|seconds?|minutes?|hours?|days?|weeks?)\b)/i;
+
+// Words that describe a result, not just an activity.
+const OUTCOME =
+  /\b(?:reduc\w*|improv\w*|increas\w*|decreas\w*|cut|saved?|saving|boost\w*|faster|speed\w*|eliminat\w*|prevent\w*|catch\w*|caught|resolv\w*|rais\w*|grew|growth|lower\w*|accelerat\w*|streamlin\w*|achiev\w*|generat\w*|drove|won|launched|shipped|released|adopted)\b/i;
 
 const EVIDENCE_TERMS =
   /\b(?:api|apis|endpoint|endpoints|database|databases|schema|service|services|microservices?|architecture|pipeline|pipelines|ci\/cd|deployment|deployments|docker|kubernetes|aws|azure|gcp|cloud|server|servers|backend|frontend|react|next\.?js|typescript|javascript|python|node\.?js|sql|postgres(?:ql)?|mysql|mongodb|redis|graphql|rest|grpc|webhook|webhooks|queue|queues|cache|caching|authentication|oauth|authorization|security|encryption|tests?|testing|unit tests?|integration tests?|code review|refactor|refactoring|migration|migrations|performance|latency|throughput|accessibility|responsive|component|components|library|libraries|design system|feature|features|integration|integrations|automation|automated|script|scripts|framework|frameworks|process|workflow|workflows|campaign|campaigns|curriculum|patients?|students?|clients?|customers?|invoices?|compliance|audit|audits|budget|budgets|forecast|forecasting|contract|contracts|supply chain|inventory|logistics|policy|policies|training|program|programs|event|events|reports?|analysis|research|stakeholders?|vendors?|operations|revenue|cost|costs|sales|marketing)\b/i;
@@ -216,6 +223,8 @@ export interface BulletAnalysis {
   strength: number;
   metric: boolean;
   evidence: boolean;
+  /** Describes a result (reduced, improved, caught, launched…), not only an activity. */
+  outcome: boolean;
   /** False for fragments such as "Built dashboard" or a bare noun list. */
   complete: boolean;
 }
@@ -294,13 +303,16 @@ function strengthFor(
   tokens: string[],
   metric: boolean,
   evidence: boolean,
+  outcome: boolean,
 ): number {
   const concrete =
     tokens.length >= 6 || metric || (evidence && tokens.length >= 4);
 
   if (action === "strong") {
-    if (metric || evidence) return 3;
-    if (concrete) return 2;
+    // Full credit needs a result (a metric or an outcome word). Technical
+    // detail alone shows what you did, which is good, but not what changed.
+    if (metric || outcome) return 3;
+    if (evidence || concrete) return 2;
     return 1.5;
   }
   if (action === "responsibility") return metric ? 2 : 1;
@@ -322,7 +334,8 @@ export function analyzeBullet(text: string): BulletAnalysis {
     metric,
     evidence,
   );
-  const rawStrength = strengthFor(action, tokens, metric, evidence);
+  const outcome = OUTCOME.test(lower);
+  const rawStrength = strengthFor(action, tokens, metric, evidence, outcome);
 
   return {
     text: clean,
@@ -332,6 +345,7 @@ export function analyzeBullet(text: string): BulletAnalysis {
     strength: complete ? rawStrength : Math.min(rawStrength, 1.5),
     metric,
     evidence,
+    outcome,
     complete,
   };
 }
@@ -499,8 +513,10 @@ function outcomesCheck(
   const withEvidence = analyses.filter((item) => item.evidence).length;
   const weak = analyses.filter((item) => item.strength < 1.5);
 
+  const withResults = analyses.filter((item) => item.metric || item.outcome).length;
+  // Passing needs real results: at least a third of bullets say what changed.
   const baseStatus: AtsStatus =
-    average >= 1.8 && strong / total >= 0.6
+    average >= 2.2 && strong / total >= 0.6 && withResults / total >= 0.3
       ? "pass"
       : average >= 1.3
         ? "warn"
@@ -515,7 +531,7 @@ function outcomesCheck(
       : baseStatus === "pass"
         ? `${strong} of ${total} bullets state a concrete contribution; ${withMetrics} include a credible metric and ${withEvidence} show technical or operational evidence.`
         : baseStatus === "warn"
-          ? `${strong} of ${total} bullets state a concrete contribution. The rest are general or responsibility-only. Add what you built, changed, or improved. Metrics help but are optional.`
+          ? `${strong} of ${total} bullets state what you did, but only ${withResults} say what changed as a result. Recruiters look for impact: add the outcome (faster, fewer bugs, more users, time saved) with a real number where you have one.`
           : `Few bullets describe a specific contribution. State what you did, what changed, or what you implemented. Technical evidence and outcomes count even without percentages.`;
 
   return {
@@ -607,20 +623,23 @@ function metricsCheck(analyses: BulletAnalysis[]): AtsCheck {
   }
 
   const withMetrics = analyses.filter((item) => item.metric).length;
-  const withEvidence = analyses.filter((item) => item.evidence).length;
+  const without = analyses.filter((item) => !item.metric);
+  // Short resumes only need one real number; longer ones need two.
+  const needed = analyses.length <= 4 ? 1 : 2;
 
   return {
     id: "metrics",
     label: "Credible metrics",
-    status: withMetrics > 0 ? "pass" : withEvidence > 0 ? "info" : "warn",
+    status: withMetrics >= needed ? "pass" : "warn",
     detail:
-      withMetrics > 0
+      withMetrics >= needed
         ? `${withMetrics} of ${analyses.length} bullets include a credible metric.`
-        : withEvidence > 0
-          ? "No numbers found, but your bullets already show technical or operational evidence. Metrics are optional; add them when they are real."
-          : "No numbers found. That is not a failure: implemented features, integrations, performance improvements, tests, and other technical evidence also demonstrate impact. Add metrics only when they are real.",
-    weight: 2,
+        : withMetrics === 1
+          ? `Only 1 of ${analyses.length} bullets has a measurable result. Aim for at least two or three real numbers (percentages, time saved, users, requests). Counts like “5 apps” or “team of 10” describe scope, not impact.`
+          : `None of your ${analyses.length} bullets has a measurable result. Add real numbers where you have them: load time, bugs fixed, users, requests, time saved. Counts like “5 apps” or “team of 10” describe scope, not impact. Do not invent figures.`,
+    weight: 5,
     category: "experience",
+    examples: withMetrics >= needed ? undefined : without.slice(0, MAX_EXAMPLES).map((item) => trim(item.text)),
   };
 }
 
@@ -722,7 +741,7 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
         incomplete.length === 0
           ? "Bullets read as complete contribution statements rather than fragments."
           : `${incomplete.length} of ${analyses.length} bullets look like fragments: they are very short, end on a connector, or are only a noun list. Rewrite them as complete statements, for example “Built a payments dashboard that reduced manual reconciliation by 30%.”`,
-      weight: 5,
+      weight: 4,
       category: "content",
       examples: incomplete
         .slice(0, MAX_EXAMPLES)
@@ -842,7 +861,7 @@ function placeholderCheck(data: ResumeData): AtsCheck {
       unique.length === 0
         ? "No bracketed instructions, TODOs, or sample text remain."
         : `${unique.length} placeholder${unique.length === 1 ? "" : "s"} remain in the resume. Replace bracketed prompts and TODO text with real content before sending it.`,
-    weight: 5,
+    weight: 4,
     category: "content",
     examples: unique.slice(0, MAX_EXAMPLES),
   };
@@ -913,7 +932,7 @@ function skillsEvidenceCheck(data: ResumeData): AtsCheck {
   const ratio = supported.length / skills.length;
 
   const status: AtsStatus =
-    supported.length === 0 ? "fail" : ratio >= 0.6 ? "pass" : "warn";
+    supported.length === 0 ? "fail" : ratio >= 0.8 ? "pass" : "warn";
 
   return {
     id: "skills-evidence",

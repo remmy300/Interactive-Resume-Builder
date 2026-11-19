@@ -23,12 +23,14 @@ interface CheckFixesProps {
   checkId: string;
   data: ResumeData;
   saving: boolean;
-  /** Saves the changed resume. The page re-runs the check afterwards. */
+
   onApply: (next: ResumeData, message: string) => void;
 }
 
 const toggle = (list: string[], value: string) =>
-  list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+  list.includes(value)
+    ? list.filter((item) => item !== value)
+    : [...list, value];
 
 /* ------------------------------ skills to remove --------------------------- */
 
@@ -45,7 +47,12 @@ function SkillsDialog({
 }) {
   const [selected, setSelected] = useState<string[]>(skills);
   return (
-    <Dialog open onClose={saving ? undefined : onCancel} fullWidth maxWidth="xs">
+    <Dialog
+      open
+      onClose={saving ? undefined : onCancel}
+      fullWidth
+      maxWidth="xs"
+    >
       <DialogTitle>Remove skills you do not show?</DialogTitle>
       <DialogContent>
         <p className="text-sm text-slate-600">
@@ -59,7 +66,9 @@ function SkillsDialog({
               <Checkbox
                 size="small"
                 checked={selected.includes(skill)}
-                onChange={() => setSelected((current) => toggle(current, skill))}
+                onChange={() =>
+                  setSelected((current) => toggle(current, skill))
+                }
                 slotProps={{ input: { "aria-label": `Remove ${skill}` } }}
               />
               <span className="text-sm text-slate-800">{skill}</span>
@@ -97,7 +106,9 @@ function VarietyDialog({
   onConfirm: (next: ResumeData, count: number) => void;
 }) {
   const fixes = suggestOpeningVariety(data);
-  const [selected, setSelected] = useState<string[]>(fixes.map((fix) => fix.id));
+  const [selected, setSelected] = useState<string[]>(
+    fixes.map((fix) => fix.id),
+  );
   const [edits, setEdits] = useState<Record<string, string>>({});
 
   const apply = () => {
@@ -108,44 +119,68 @@ function VarietyDialog({
         original: fix.original,
         suggested: (edits[fix.id] ?? fix.suggested).trim(),
       }))
-      .filter((change) => change.suggested && change.suggested !== change.original);
+      .filter(
+        (change) => change.suggested && change.suggested !== change.original,
+      );
     onConfirm(applyBulletChanges(data, changes), changes.length);
   };
 
   return (
-    <Dialog open onClose={saving ? undefined : onCancel} fullWidth maxWidth="sm">
+    <Dialog
+      open
+      onClose={saving ? undefined : onCancel}
+      fullWidth
+      maxWidth="sm"
+    >
       <DialogTitle>Vary repeated opening words</DialogTitle>
       <DialogContent>
         <p className="text-sm text-slate-600">
-          Only the first word changes, and only on the third repeat. Edit any line
-          before applying it.
+          Only the first word changes, and only on the third repeat. Edit any
+          line before applying it.
         </p>
         <div className="mt-3 space-y-3">
           {fixes.map((fix) => (
-            <div key={fix.id} className="rounded-lg border border-slate-200 p-3">
+            <div
+              key={fix.id}
+              className="rounded-lg border border-slate-200 p-3"
+            >
               <div className="flex items-start gap-2">
                 <Checkbox
                   size="small"
                   checked={selected.includes(fix.id)}
-                  onChange={() => setSelected((current) => toggle(current, fix.id))}
-                  slotProps={{ input: { "aria-label": `Apply for ${fix.entryLabel}` } }}
+                  onChange={() =>
+                    setSelected((current) => toggle(current, fix.id))
+                  }
+                  slotProps={{
+                    input: { "aria-label": `Apply for ${fix.entryLabel}` },
+                  }}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     {fix.entryLabel}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500 line-through">{fix.original}</p>
+                  <p className="mt-1 text-sm text-slate-500 line-through">
+                    {fix.original}
+                  </p>
                   <TextField
                     value={edits[fix.id] ?? fix.suggested}
                     onChange={(event) =>
-                      setEdits((current) => ({ ...current, [fix.id]: event.target.value }))
+                      setEdits((current) => ({
+                        ...current,
+                        [fix.id]: event.target.value,
+                      }))
                     }
                     multiline
                     minRows={2}
                     fullWidth
                     size="small"
                     sx={{ mt: 1 }}
-                    slotProps={{ htmlInput: { maxLength: 500, "aria-label": "Reworded bullet" } }}
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: 500,
+                        "aria-label": "Reworded bullet",
+                      },
+                    }}
                   />
                   <p className="mt-1 text-xs text-slate-600">{fix.reason}</p>
                 </div>
@@ -158,7 +193,11 @@ function VarietyDialog({
         <Button onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button variant="contained" disabled={saving || selected.length === 0} onClick={apply}>
+        <Button
+          variant="contained"
+          disabled={saving || selected.length === 0}
+          onClick={apply}
+        >
           {saving ? "Saving…" : `Apply ${selected.length}`}
         </Button>
       </DialogActions>
@@ -168,7 +207,11 @@ function VarietyDialog({
 
 /* ---------------------------------- panel ---------------------------------- */
 
-function LocationFix({ data, saving, onApply }: Omit<CheckFixesProps, "checkId">) {
+function LocationFix({
+  data,
+  saving,
+  onApply,
+}: Omit<CheckFixesProps, "checkId">) {
   const [value, setValue] = useState("");
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -192,10 +235,16 @@ function LocationFix({ data, saving, onApply }: Omit<CheckFixesProps, "checkId">
   );
 }
 
-function EducationFix({ data, saving, onApply }: Omit<CheckFixesProps, "checkId">) {
+function EducationFix({
+  data,
+  saving,
+  onApply,
+}: Omit<CheckFixesProps, "checkId">) {
   const found = incompleteEducation(data);
   const [institution, setInstitution] = useState(found?.institution ?? "");
-  const [qualification, setQualification] = useState(found?.qualification ?? "");
+  const [qualification, setQualification] = useState(
+    found?.qualification ?? "",
+  );
   if (!found) return null;
   return (
     <div className="mt-2 grid max-w-md gap-2 sm:grid-cols-2">
@@ -220,7 +269,12 @@ function EducationFix({ data, saving, onApply }: Omit<CheckFixesProps, "checkId"
           disabled={saving || !institution.trim() || !qualification.trim()}
           onClick={() =>
             onApply(
-              completeEducation(data, found.entry.id, institution, qualification),
+              completeEducation(
+                data,
+                found.entry.id,
+                institution,
+                qualification,
+              ),
               "Education updated.",
             )
           }
@@ -237,7 +291,12 @@ function EducationFix({ data, saving, onApply }: Omit<CheckFixesProps, "checkId"
  * anything. Findings that need your own facts (a result, a client, a reason) have
  * no button: the wording stays yours.
  */
-export function CheckFixes({ checkId, data, saving, onApply }: CheckFixesProps) {
+export function CheckFixes({
+  checkId,
+  data,
+  saving,
+  onApply,
+}: CheckFixesProps) {
   const [dialog, setDialog] = useState<"skills" | "variety" | null>(null);
 
   if (checkId === "skills-evidence") {
@@ -245,7 +304,12 @@ export function CheckFixes({ checkId, data, saving, onApply }: CheckFixesProps) 
     if (unsupported.length === 0) return null;
     return (
       <>
-        <Button size="small" variant="outlined" sx={{ mt: 1.5 }} onClick={() => setDialog("skills")}>
+        <Button
+          size="small"
+          variant="outlined"
+          sx={{ mt: 1.5 }}
+          onClick={() => setDialog("skills")}
+        >
           Review {unsupported.length} skills to remove
         </Button>
         {dialog === "skills" && (
@@ -271,7 +335,12 @@ export function CheckFixes({ checkId, data, saving, onApply }: CheckFixesProps) 
     if (count === 0) return null;
     return (
       <>
-        <Button size="small" variant="outlined" sx={{ mt: 1.5 }} onClick={() => setDialog("variety")}>
+        <Button
+          size="small"
+          variant="outlined"
+          sx={{ mt: 1.5 }}
+          onClick={() => setDialog("variety")}
+        >
           Review {count} reworded opening{count === 1 ? "" : "s"}
         </Button>
         {dialog === "variety" && (
@@ -280,7 +349,10 @@ export function CheckFixes({ checkId, data, saving, onApply }: CheckFixesProps) 
             saving={saving}
             onCancel={() => setDialog(null)}
             onConfirm={(next, changed) => {
-              onApply(next, `${changed} bullet${changed === 1 ? "" : "s"} reworded.`);
+              onApply(
+                next,
+                `${changed} bullet${changed === 1 ? "" : "s"} reworded.`,
+              );
               setDialog(null);
             }}
           />
