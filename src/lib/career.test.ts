@@ -132,6 +132,109 @@ describe("generateCoverLetter", () => {
   });
 });
 
+describe("generateCoverLetter voice", () => {
+  function realisticResume(): ResumeData {
+    const data = createEmptyResume();
+    data.personal = {
+      ...data.personal,
+      name: "Jentah Mwadime",
+      title: "AI-Native Developer Intern | JavaScript & Full-Stack Development",
+      email: "j@example.com",
+    };
+    data.summary =
+      "JavaScript and TypeScript developer who builds and deploys full-stack web apps. Has shipped 5 full-stack apps.";
+    data.experience = [
+      {
+        id: "e1",
+        company: "Devbyte Community",
+        role: "Frontend Developer",
+        startDate: "2025-04",
+        endDate: "2026-03",
+        current: false,
+        description: [
+          "Worked in a team of 10 on a live startup product, consuming REST APIs built by the backend team.",
+          "Built sign-up and login flows in React and TypeScript, handling auth state with Redux thunks.",
+        ].join("\n"),
+      },
+      {
+        id: "e2",
+        company: "Upwork",
+        role: "Software Developer",
+        startDate: "2022-01",
+        endDate: "2023-09",
+        current: false,
+        description:
+          "Designed, built and deployed 5 full-stack apps in JavaScript and TypeScript with React and Node.js.",
+      },
+    ];
+    data.projects = [
+      {
+        id: "p1",
+        title: "FlowDesk (project management)",
+        link: "",
+        github: "",
+        description:
+          "Delivered project and task workflows with role-based access, using TanStack Query for caching.",
+      },
+    ];
+    data.skills = {
+      languages: "JavaScript, TypeScript",
+      technologies: "React, Next.js, Redux Toolkit",
+      databases: "PostgreSQL",
+      spoken: "",
+    };
+    return data;
+  }
+
+  it("does not paste the CV summary or the long headline", () => {
+    const letter = generateCoverLetter({
+      resume: realisticResume(),
+      company: "JanSoft",
+      role: "AI Native Developer",
+      jobDescription: "We use React, TypeScript and Node.js.",
+    });
+    expect(letter).not.toContain("Has shipped 5 full-stack apps");
+    expect(letter).not.toContain("JavaScript & Full-Stack Development");
+    expect(letter).not.toContain("hands-on experience in");
+    expect(letter).toContain("I am an AI-Native Developer Intern");
+  });
+
+  it("writes first-person sentences from real bullets", () => {
+    const letter = generateCoverLetter({
+      resume: realisticResume(),
+      company: "JanSoft",
+      role: "AI Native Developer",
+      jobDescription: "We use React and TypeScript.",
+    });
+    expect(letter).toContain("As a Frontend Developer at Devbyte Community, I ");
+    expect(letter).toContain("Previously, as a Software Developer at Upwork, I ");
+    expect(letter).toContain("where I delivered project and task workflows");
+    expect(letter).toContain("FlowDesk,");
+    expect(letter).not.toContain("(project management)");
+  });
+
+  it("only claims keywords that are on the CV", () => {
+    const letter = generateCoverLetter({
+      resume: realisticResume(),
+      company: "JanSoft",
+      role: "Developer",
+      jobDescription: "Requires Kubernetes, Terraform and React.",
+    });
+    expect(letter).not.toMatch(/Kubernetes|Terraform/);
+  });
+
+  it("stays short in the concise tone", () => {
+    const concise = generateCoverLetter({
+      resume: realisticResume(),
+      company: "JanSoft",
+      role: "Developer",
+      tone: "concise",
+    });
+    expect(concise).not.toContain("Outside of my day-to-day work");
+    expect(concise).not.toContain("Previously,");
+  });
+});
+
 describe("buildInterviewQuestions", () => {
   it("grounds questions in the resume and company", () => {
     const questions = buildInterviewQuestions(sampleResume(), "Acme");

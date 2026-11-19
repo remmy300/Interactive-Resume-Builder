@@ -1,12 +1,5 @@
 import { z } from "zod";
-import {
-  extractKeywords,
-  matchKeywords,
-  mergeSkillList,
-  skillItems,
-  suggestSkillsField,
-} from "./ats";
-import { formatLink, normalizeLinkUrl } from "./letter-links";
+import { mergeSkillList, skillItems, suggestSkillsField } from "./ats";
 import type { ResumeData, Skills } from "./resume-schema";
 
 /* -------------------------------------------------------------------------- */
@@ -60,9 +53,7 @@ export const applicationUpdateSchema = applicationInputSchema.partial();
 
 export type ApplicationInput = z.infer<typeof applicationInputSchema>;
 
-/* -------------------------------------------------------------------------- */
-/*                                Cover letters                               */
-/* -------------------------------------------------------------------------- */
+/* Cover Letter */
 
 export const coverLetterInputSchema = z.object({
   title: z.string().trim().min(1, "Give the letter a title.").max(120),
@@ -75,130 +66,22 @@ export const coverLetterUpdateSchema = coverLetterInputSchema.partial();
 
 export type CoverLetterInput = z.infer<typeof coverLetterInputSchema>;
 
-export const COVER_LETTER_TONES = [
-  "professional",
-  "enthusiastic",
-  "concise",
-] as const;
-
-export type CoverLetterTone = (typeof COVER_LETTER_TONES)[number];
-
-export interface CoverLetterDraftInput {
-  resume: ResumeData;
-  company: string;
-  role: string;
-  manager?: string;
-  jobDescription?: string;
-  tone?: CoverLetterTone;
-}
+export {
+  COVER_LETTER_TONES,
+  generateCoverLetter,
+  type CoverLetterDraftInput,
+  type CoverLetterTone,
+} from "./cover-letter";
 
 function topSkills(data: ResumeData, limit = 4): string[] {
-  const ordered = [...skillItems(data.skills.technologies), ...skillItems(data.skills.languages)];
+  const ordered = [
+    ...skillItems(data.skills.technologies),
+    ...skillItems(data.skills.languages),
+  ];
   return [...new Set(ordered)].slice(0, limit);
 }
 
-function bestBullets(data: ResumeData, limit = 2): string[] {
-  const bullets = data.experience
-    .flatMap((entry) =>
-      entry.description
-        .split("\n")
-        .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
-        .filter(Boolean),
-    )
-    .filter((line) => line.length > 20);
-
-  // Prefer quantified achievements, then shorter, punchier bullets.
-  return bullets
-    .sort((a, b) => Number(/\d/.test(b)) - Number(/\d/.test(a)))
-    .slice(0, limit);
-}
-
-/**
- * Builds an editable cover-letter draft from the user's own resume content and
- * optional job-description keywords. The user always reviews the text before
- * saving it.
- */
-export function generateCoverLetter({
-  resume,
-  company,
-  role,
-  manager,
-  jobDescription = "",
-  tone = "professional",
-}: CoverLetterDraftInput): string {
-  const name = resume.personal.name.trim() || "Your name";
-  const targetRole = role.trim() || "the advertised role";
-  const targetCompany = company.trim() || "your company";
-  const skills = topSkills(resume);
-  const keywords = jobDescription
-    ? matchKeywords(resume, extractKeywords(jobDescription)).matched.slice(0, 3)
-    : [];
-  const bullets = bestBullets(resume);
-  const greeting = manager?.trim()
-    ? `Dear ${manager.trim()},`
-    : "Dear Hiring Manager,";
-
-  const opening =
-    tone === "enthusiastic"
-      ? `I was excited to see the opening for ${targetRole} at ${targetCompany}, and I would love to bring my experience to your team.`
-      : tone === "concise"
-        ? `I am applying for the ${targetRole} role at ${targetCompany}.`
-        : `I am writing to apply for the ${targetRole} position at ${targetCompany}.`;
-
-  const background = resume.personal.title.trim()
-    ? `I am a ${resume.personal.title.trim()}${skills.length ? ` with hands-on experience in ${skills.join(", ")}` : ""}.`
-    : skills.length
-      ? `My background includes ${skills.join(", ")}.`
-      : "";
-
-  const summary = resume.summary.trim();
-  const proof = bullets.length
-    ? `In previous roles I ${bullets
-        .map((bullet) => {
-          const clean = bullet.replace(/^I\s+/i, "");
-          return clean.charAt(0).toLowerCase() + clean.slice(1).replace(/\.$/, "");
-        })
-        .join(", and I ")}.`
-    : "";
-
-  const fit = keywords.length
-    ? `Your focus on ${keywords.join(", ")} aligns closely with the work I enjoy doing, and I would be glad to go into detail about how I can contribute.`
-    : `I would welcome the opportunity to discuss how my background can support ${targetCompany}.`;
-
-  const closing =
-    tone === "concise"
-      ? "Thank you for your consideration. I look forward to hearing from you."
-      : "Thank you for your time and consideration. I would welcome the chance to discuss how I can contribute to your team.";
-
-  const titledLink = (title: string, value: string) => {
-    const href = normalizeLinkUrl(value);
-    return href ? formatLink(title, href) : "";
-  };
-  const contact = [
-    resume.personal.email.trim(),
-    resume.personal.phone.trim(),
-    titledLink("LinkedIn", resume.personal.linkedIn),
-    titledLink("Portfolio", resume.personal.portfolio),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  return [
-    greeting,
-    [opening, background].filter(Boolean).join(" "),
-    summary,
-    proof,
-    fit,
-    closing,
-    `Sincerely,\n${name}${contact ? `\n${contact}` : ""}`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-/* -------------------------------------------------------------------------- */
-/*                         Job-description assistant                          */
-/* -------------------------------------------------------------------------- */
+/* Job Description */
 
 export interface BulletSuggestion {
   id: string;
@@ -210,11 +93,31 @@ export interface BulletSuggestion {
 }
 
 const WEAK_OPENINGS: Array<[RegExp, string, string]> = [
-  [/^responsible for\s+/i, "Owned ", "Replace “responsible for” with a strong action verb."],
-  [/^worked on\s+/i, "Delivered ", "Replace “worked on” with a result-oriented verb."],
-  [/^helped (with|to)\s+/i, "Supported ", "Replace “helped” with a specific contribution."],
-  [/^assisted (with|in)\s+/i, "Supported ", "Replace “assisted” with a specific contribution."],
-  [/^(involved in|participated in)\s+/i, "Contributed to ", "Show ownership instead of participation."],
+  [
+    /^responsible for\s+/i,
+    "Owned ",
+    "Replace “responsible for” with a strong action verb.",
+  ],
+  [
+    /^worked on\s+/i,
+    "Delivered ",
+    "Replace “worked on” with a result-oriented verb.",
+  ],
+  [
+    /^helped (with|to)\s+/i,
+    "Supported ",
+    "Replace “helped” with a specific contribution.",
+  ],
+  [
+    /^assisted (with|in)\s+/i,
+    "Supported ",
+    "Replace “assisted” with a specific contribution.",
+  ],
+  [
+    /^(involved in|participated in)\s+/i,
+    "Contributed to ",
+    "Show ownership instead of participation.",
+  ],
   [/^duties included\s+/i, "Delivered ", "Describe outcomes, not duties."],
   [/^tasked with\s+/i, "Led ", "Describe what you delivered."],
 ];
@@ -248,11 +151,6 @@ function polishBullet(bullet: string): { text: string; reasons: string[] } {
   return { text, reasons };
 }
 
-/**
- * Suggests conservative rewrites of the user's real bullets. It never invents
- * tools or claims — missing job keywords are surfaced as hints instead of being
- * inserted into the text.
- */
 export function suggestBulletImprovements(
   data: ResumeData,
   limit = 12,
@@ -265,7 +163,8 @@ export function suggestBulletImprovements(
       .split("\n")
       .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
       .filter(Boolean);
-    const entryLabel = [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
+    const entryLabel =
+      [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
 
     for (const original of lines) {
       const dedupeKey = `${entry.id}:${original.toLowerCase()}`;
@@ -295,7 +194,6 @@ export interface BulletChange {
   suggested: string;
 }
 
-/** Applies only the bullet rewrites the user approved. */
 export function applyBulletChanges(
   data: ResumeData,
   changes: BulletChange[],
@@ -303,15 +201,22 @@ export function applyBulletChanges(
   if (changes.length === 0) return data;
   const byEntry = new Map<string, BulletChange[]>();
   for (const change of changes) {
-    byEntry.set(change.entryId, [...(byEntry.get(change.entryId) ?? []), change]);
+    byEntry.set(change.entryId, [
+      ...(byEntry.get(change.entryId) ?? []),
+      change,
+    ]);
   }
 
-  const rewrite = <T extends { id: string; description: string }>(entry: T): T => {
+  const rewrite = <T extends { id: string; description: string }>(
+    entry: T,
+  ): T => {
     const entryChanges = byEntry.get(entry.id);
     if (!entryChanges) return entry;
     const next = entry.description.split("\n").map((line) => {
       const clean = line.replace(/^\s*[-•*]\s*/, "").trim();
-      const match = entryChanges.find((change) => change.original.trim() === clean);
+      const match = entryChanges.find(
+        (change) => change.original.trim() === clean,
+      );
       return match ? match.suggested : line;
     });
     return { ...entry, description: next.join("\n") };
@@ -324,8 +229,10 @@ export function applyBulletChanges(
   };
 }
 
-/** Adds reviewed keywords to the right skills groups. */
-export function addSkillsToResume(data: ResumeData, terms: string[]): ResumeData {
+export function addSkillsToResume(
+  data: ResumeData,
+  terms: string[],
+): ResumeData {
   if (terms.length === 0) return data;
   const grouped: Partial<Record<keyof Skills, string[]>> = {};
   for (const term of terms) {
@@ -342,9 +249,7 @@ export function addSkillsToResume(data: ResumeData, terms: string[]): ResumeData
   return { ...data, skills };
 }
 
-/* -------------------------------------------------------------------------- */
 /*                               Interview prep                               */
-/* -------------------------------------------------------------------------- */
 
 export const INTERVIEW_CATEGORIES = [
   "behavioral",
@@ -382,10 +287,12 @@ export function buildInterviewQuestions(
   data: ResumeData,
   company?: string,
 ): InterviewQuestion[] {
-  const questions: InterviewQuestion[] = BEHAVIORAL_QUESTIONS.map((question) => ({
-    question,
-    category: "behavioral" as const,
-  }));
+  const questions: InterviewQuestion[] = BEHAVIORAL_QUESTIONS.map(
+    (question) => ({
+      question,
+      category: "behavioral" as const,
+    }),
+  );
 
   const role = data.personal.title.trim();
   if (role) {
@@ -411,7 +318,9 @@ export function buildInterviewQuestions(
     });
   }
 
-  const projects = data.projects.filter((project) => project.title.trim()).slice(0, 2);
+  const projects = data.projects
+    .filter((project) => project.title.trim())
+    .slice(0, 2);
   for (const project of projects) {
     questions.push({
       question: `Tell me about ${project.title.trim()}. What problem did it solve and what would you improve?`,
@@ -430,7 +339,8 @@ export function buildInterviewQuestions(
     });
   } else {
     questions.push({
-      question: "What do you know about our company, and why are you applying here?",
+      question:
+        "What do you know about our company, and why are you applying here?",
       category: "company",
     });
   }
