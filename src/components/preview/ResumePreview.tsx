@@ -25,7 +25,7 @@ const LINE = { tight: 0.93, normal: 1, relaxed: 1.1 } as const;
 
 /** Design settings as CSS variables, read by the .cv styles in globals.css. */
 function styleVariables(data: ResumeData): CSSProperties {
-  const { font, fontScale, spacing, pageSize } = data.style;
+  const { font, fontScale, spacing, pageSize, accent } = data.style;
   const stack = FONT_CHOICES.find((choice) => choice.id === font)?.stack;
   return {
     "--cv-scale": fontScale,
@@ -33,6 +33,7 @@ function styleVariables(data: ResumeData): CSSProperties {
     "--cv-line": LINE[spacing],
     "--cv-page-w": PAGE_SIZES[pageSize].width,
     ...(stack ? { "--cv-font": stack } : {}),
+    ...(accent ? { "--cv-accent": accent } : {}),
   } as CSSProperties;
 }
 
@@ -151,7 +152,13 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
   };
 
   return (
-    <div className={`cv cv--${data.template}`} style={styleVariables(data)}>
+    <div
+      className={`cv cv--${data.template}`}
+      style={styleVariables(data)}
+      data-accent={data.style.accent ? "on" : undefined}
+      data-align={data.style.align}
+      data-header-align={data.style.headerAlign}
+    >
       {/* Paper size. Page margins are drawn by PrintPages, so none are set here and the browser adds no header or footer. */}
       <style>{`@page { size: ${data.style.pageSize === "letter" ? "letter" : "A4"}; margin: 0; }`}</style>
       <div className="cv-page">

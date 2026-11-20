@@ -33,7 +33,10 @@ type SectionKey =
   | "certifications";
 
 const SECTION_PATTERNS: Array<[SectionKey, RegExp]> = [
-  ["summary", /^(professional\s+)?(summary|profile|objective|about me|personal statement)$/i],
+  [
+    "summary",
+    /^(professional\s+)?(summary|profile|objective|about me|personal statement)$/i,
+  ],
   [
     "experience",
     /^((work|professional|relevant)\s+)?(experience|employment(\s+history)?|career history|work history)$/i,
@@ -47,19 +50,24 @@ const SECTION_PATTERNS: Array<[SectionKey, RegExp]> = [
     /^((technical|core|key|professional)\s+)?(skills|competencies|expertise|technologies)(\s*(&|and)\s*(tools|technologies|frameworks|libraries|languages|platforms))?$/i,
   ],
   ["projects", /^((personal|selected|key|side)\s+)?projects$/i],
-  ["certifications", /^(certifications?|certificates?|licences?|licenses?|awards?)$/i],
+  [
+    "certifications",
+    /^(certifications?|certificates?|licences?|licenses?|awards?)$/i,
+  ],
 ];
 
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const PHONE_PATTERN = /(\+?\d[\d\s().-]{7,}\d)/;
-const URL_PATTERN = /(https?:\/\/[^\s]+|(?:www\.)?(?:linkedin|github)\.com\/[^\s]+)/i;
+const URL_PATTERN =
+  /(https?:\/\/[^\s]+|(?:www\.)?(?:linkedin|github)\.com\/[^\s]+)/i;
 const DATE_RANGE_PATTERN =
   /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s*,?\s*\d{2,4}|\d{1,2}\/\d{4}|\d{4})\s*(?:-|–|—|to|until)\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s*,?\s*\d{2,4}|\d{1,2}\/\d{4}|\d{4}|present|current|now|ongoing)/i;
 const SINGLE_DATE_PATTERN =
   /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s*,?\s*\d{2,4}|\d{1,2}\/\d{4})/i;
 const ROLE_WORDS =
   /\b(developer|engineer|manager|analyst|designer|intern|lead|consultant|specialist|director|officer|architect|scientist|administrator|coordinator|associate|assistant|teacher|nurse|accountant|marketer)\b/i;
-const SCHOOL_WORDS = /\b(university|college|institute|school|academy|polytechnic)\b/i;
+const SCHOOL_WORDS =
+  /\b(university|college|institute|school|academy|polytechnic)\b/i;
 const DEGREE_WORDS =
   /\b(bachelor|master|bsc|ba|b\.?a|mba|msc|phd|doctorate|diploma|certificate|degree|associate)\b/i;
 
@@ -80,6 +88,14 @@ const MONTHS: Record<string, string> = {
 };
 
 const hasText = (value: string) => value.trim().length > 0;
+
+const COMPANY_LINE =
+  /^[A-Z][A-Za-z0-9&.' -]{1,45}(?:,\s*[A-Za-z][A-Za-z.' -]{2,30}){2}\.?$/;
+
+const companyName = (value: string) =>
+  COMPANY_LINE.test(value.trim())
+    ? value.trim().split(",")[0].trim()
+    : value.trim().replace(/\.$/, "");
 
 function cleanLine(line: string): string {
   return line.replace(/\t/g, " ").replace(/\s+/g, " ").trim();
@@ -102,7 +118,8 @@ function toMonthValue(token: string): string {
   const value = token.trim().toLowerCase();
   const monthYear = value.match(/([a-z]{3,9})\.?\s*,?\s*(\d{2,4})/);
   if (monthYear) {
-    const month = MONTHS[monthYear[1].slice(0, 4)] ?? MONTHS[monthYear[1].slice(0, 3)];
+    const month =
+      MONTHS[monthYear[1].slice(0, 4)] ?? MONTHS[monthYear[1].slice(0, 3)];
     const year = monthYear[2].length === 2 ? `20${monthYear[2]}` : monthYear[2];
     if (month) return `${year}-${month}`;
   }
@@ -153,10 +170,6 @@ function splitBlocks(lines: string[]): string[][] {
   return blocks;
 }
 
-/**
- * Uses blank lines when the export preserved them, otherwise starts a new block
- * at each date range so concatenated PDF text still yields separate roles.
- */
 function splitSectionBlocks(lines: string[]): string[][] {
   const byBlank = splitBlocks(lines);
   if (byBlank.length > 1) return byBlank;
@@ -173,9 +186,9 @@ function splitSectionBlocks(lines: string[]): string[][] {
       const candidate = index - back;
       if (candidate <= 0) break;
       const line = lines[candidate];
-      if (!line || /^\s*[-•*▪◦●]/.test(line) || DATE_RANGE_PATTERN.test(line)) break;
-      // Only a short title line ("Company", "Role") belongs to the dates below it.
-      // A finished sentence is the last bullet of the previous entry.
+      if (!line || /^\s*[-•*▪◦●]/.test(line) || DATE_RANGE_PATTERN.test(line))
+        break;
+
       if (!looksLikeHeaderLine(line)) break;
       start = candidate;
     }
@@ -196,32 +209,28 @@ const TRAILING_CONNECTOR =
 
 const endsSentence = (line: string) => /[.!?:]["')\]]?$/.test(line.trim());
 
-const STACK_LABEL = /^(technologies|tech(?:nology)? stack|stack|built with|tools)\s*:/i;
+const STACK_LABEL =
+  /^(technologies|tech(?:nology)? stack|stack|built with|tools)\s*:/i;
 
-/** A technology list such as "React · Node.js · PostgreSQL" or "Technologies: …". */
 const isStackLine = (line: string) =>
-  // "Title | Live Demo: x | GitHub: y" has bars too, but it is a project header.
   ((line.match(/\s[·|•]\s/g) ?? []).length >= 2 && !isProjectHeader(line)) ||
   STACK_LABEL.test(line.trim());
 
-/** "Live Demo: [link]" / "GitHub: https://…" fields inside a project header. */
-const LINK_FIELD = /\b(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)\s*:/i;
+const LINK_FIELD =
+  /\b(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)\s*:/i;
 
-/** A project header that ends in link words: "Shop | Next.js, React | Live demo · GitHub". */
 const PROJECT_LINK_WORD = String.raw`(?:live\s+demo|demo|github|gitlab|source|code|repo(?:sitory)?)`;
 const LINK_TAIL = new RegExp(
   String.raw`\s[|·•]\s${PROJECT_LINK_WORD}(?:\s*[|·•,]\s*${PROJECT_LINK_WORD})*\s*$`,
   "i",
 );
-// "Resume Studio (career platform) | Next.js, TypeScript, Prisma": a title, a bar
-// and a list of technologies, with no link words.
+
 const TITLE_WITH_STACK = /^[^|]{2,70}\s\|\s[^|]*,[^|]*$/;
 const isProjectHeader = (line: string) =>
   LINK_FIELD.test(line) ||
   LINK_TAIL.test(line.trim()) ||
   TITLE_WITH_STACK.test(line.trim());
 
-/** A bare technology list without a label: "Next.js, React, TypeScript, Docker". */
 const isCommaStack = (line: string) =>
   (line.match(/,/g) ?? []).length >= 3 &&
   !endsSentence(line) &&
@@ -229,31 +238,25 @@ const isCommaStack = (line: string) =>
 
 const LINK_WORD =
   "(?:live\\s+)?demo|github|gitlab|source(?:\\s+code)?|code|repo(?:sitory)?|link|website|live\\s+site|case\\s+study|portfolio";
-/** Lines like "Live Demo | Github" are just link captions, not achievements. */
+
 const LINK_LABEL_LINE = new RegExp(
   `^[•\\-*\\s]*(?:${LINK_WORD})(?:\\s*[|·•/,]\\s*(?:${LINK_WORD}))*[•\\-*\\s]*$`,
   "i",
 );
 
-const firstWord = (line: string) => (line.match(/[A-Za-z]+/)?.[0] ?? "").toLowerCase();
+const firstWord = (line: string) =>
+  (line.match(/[A-Za-z]+/)?.[0] ?? "").toLowerCase();
 
-/** Rejoins a word that was hyphenated across a line break ("pixel-" + "perfect"). */
 function joinLines(previous: string, next: string): string {
   const glue = /[A-Za-z]-$/.test(previous) && /^[a-z]/.test(next) ? "" : " ";
   return `${previous}${glue}${next}`.replace(/\s+/g, " ");
 }
 
-/**
- * PDF text is wrapped at the page width and often loses its bullet characters,
- * so one achievement arrives as several lines. Decides whether `next` carries
- * on `prev` when the document has no bullet markers to go by.
- */
 function isContinuation(prev: string, next: string): boolean {
   if (!hasText(prev) || !hasText(next)) return false;
   if (BULLET_START.test(next) || DATE_RANGE_PATTERN.test(next)) return false;
-  // A long "Tech stack: …" list wraps like any other line ("…Vitest, React" /
-  // "Testing Library"). Nothing but a bullet can follow it, so a short line that
-  // is not a sentence or a verb-led bullet is the rest of the list.
+  if (COMPANY_LINE.test(next)) return false;
+
   if (
     STACK_LABEL.test(prev.trim()) &&
     !isStackLine(next) &&
@@ -266,31 +269,27 @@ function isContinuation(prev: string, next: string): boolean {
   }
   if (isStackLine(prev) || isStackLine(next)) return false;
   if (endsSentence(prev)) return false;
-  // A header ending in a placeholder ("GitHub: [link]") is complete.
+
   if (/\[[^\]]*\]$/.test(prev.trim())) return false;
   if (/,$/.test(prev) || TRAILING_CONNECTOR.test(prev)) return true;
-  // A capitalised line that opens with an action verb ("Built cart, checkout…")
-  // starts a new bullet, even if the line above has no full stop (a tech stack).
-  if (/^[A-Z]/.test(next) && next.split(/\s+/).length >= 4 && ACTION_VERBS.has(firstWord(next))) {
+
+  if (
+    /^[A-Z]/.test(next) &&
+    next.split(/\s+/).length >= 4 &&
+    ACTION_VERBS.has(firstWord(next))
+  ) {
     return false;
   }
-  // A short line followed by a lowercase one is usually two fields ("Eldorado" /
-  // "high school graduate"), not a wrapped sentence.
+
   if (/^[a-z(]/.test(next)) return prev.length >= 45;
-  // A long line with no full stop was wrapped mid-sentence, unlike a short title.
+
   return prev.length >= 70 && !DATE_RANGE_PATTERN.test(prev);
 }
 
-/**
- * Joins wrapped lines back into whole sentences so an achievement is never split
- * in two. When the text still has bullet markers, every unmarked line that
- * follows a bullet belongs to it, unless it is clearly the next entry's title.
- * Blank lines stay as barriers.
- */
 function mergeWrappedLines(rawLines: string[]): string[] {
-  // A caption such as "Live Demo | Github" ends a project. Turn it into a blank
-  // line so the next title cannot be glued onto a last bullet that has no full stop.
-  const lines = rawLines.map((line) => (LINK_LABEL_LINE.test(line) ? "" : line));
+  const lines = rawLines.map((line) =>
+    LINK_LABEL_LINE.test(line) ? "" : line,
+  );
   const bulleted = lines.some((line) => BULLET_START.test(line));
   const merged: string[] = [];
   let inBullet = false;
@@ -312,6 +311,13 @@ function mergeWrappedLines(rawLines: string[]): string[] {
           !BULLET_START.test(line) &&
           !DATE_RANGE_PATTERN.test(line) &&
           !isStackLine(line) &&
+          !COMPANY_LINE.test(line) &&
+          !(
+            upcoming !== undefined &&
+            DATE_RANGE_PATTERN.test(upcoming) &&
+            line.length <= 80 &&
+            !endsSentence(line)
+          ) &&
           !(upcoming !== undefined && isStackLine(upcoming)) &&
           !(endsSentence(previous) && looksLikeTitle(line));
       } else {
@@ -330,33 +336,26 @@ function mergeWrappedLines(rawLines: string[]): string[] {
   return merged;
 }
 
-/**
- * Some PDFs mark bullets only with a leading space once the glyph is dropped.
- * When most indented lines look like that, restore a real bullet marker so the
- * line structure survives `cleanLine` trimming.
- */
 function restoreIndentedBullets(text: string): string {
   const lines = text.split("\n");
   const filled = lines.filter(hasText);
   const indented = filled.filter((line) => /^[ \t]\S/.test(line));
   if (indented.length < 3 || indented.length > filled.length * 0.8) return text;
-  return lines.map((line) => (/^[ \t]\S/.test(line) ? `• ${line.trim()}` : line)).join("\n");
+  return lines
+    .map((line) => (/^[ \t]\S/.test(line) ? `• ${line.trim()}` : line))
+    .join("\n");
 }
 
-/** Short, title-like line that is not a sentence and does not start with a verb. */
 function looksLikeTitle(line: string): boolean {
-  if (BULLET_START.test(line) || endsSentence(line) || isStackLine(line)) return false;
+  if (COMPANY_LINE.test(line)) return true;
+  if (BULLET_START.test(line) || endsSentence(line) || isStackLine(line))
+    return false;
   const limit = isProjectHeader(line) ? 260 : 90;
   if (line.length > limit || !/^[A-Z0-9]/.test(line)) return false;
   const words = line.split(/\s+/).length;
   return !(words >= 4 && ACTION_VERBS.has(firstWord(line)));
 }
 
-/**
- * Splits a section into entries when the text has no blank lines, starting a new
- * entry at each title-like line. Text before the first title becomes its own
- * block so an unrelated paragraph cannot swallow the entries after it.
- */
 function splitTitleBlocks(lines: string[]): string[][] {
   const byBlank = splitBlocks(lines);
   if (byBlank.length > 1) return byBlank;
@@ -379,24 +378,28 @@ function splitTitleBlocks(lines: string[]): string[][] {
   }
   if (starts[0] > 0) starts.unshift(0);
   return starts
-    .map((start, index) => lines.slice(start, starts[index + 1] ?? lines.length))
+    .map((start, index) =>
+      lines.slice(start, starts[index + 1] ?? lines.length),
+    )
     .map((block) => block.filter(hasText))
     .filter((block) => block.length > 0);
 }
 
-/** Header-like: dates, or a short non-sentence line that is not an achievement. */
 function looksLikeHeaderLine(line: string): boolean {
   // A project header with its stack on the same line ("Title | Live Demo: x | …")
   // is longer than a plain title but is still a header.
   const limit = isProjectHeader(line) ? 260 : 100;
   if (BULLET_START.test(line) || line.length > limit) return false;
-  if (DATE_RANGE_PATTERN.test(line)) return true;
+  if (DATE_RANGE_PATTERN.test(line) || COMPANY_LINE.test(line)) return true;
   if (endsSentence(line)) return false;
   const words = line.split(/\s+/).length;
   return !(words >= 4 && ACTION_VERBS.has(firstWord(line)));
 }
 
-function headerLines(block: string[]): { headers: string[]; details: string[] } {
+function headerLines(block: string[]): {
+  headers: string[];
+  details: string[];
+} {
   const headers: string[] = [];
   const details: string[] = [];
   let seenDetail = false;
@@ -437,7 +440,11 @@ function parseExperienceBlock(block: string[]): ExperienceEntry | null {
     if (picked.length >= 2) break;
     consumed += 1;
     for (const part of splitHeaderLine(header)) {
-      if (picked.length < 2 && !DATE_RANGE_PATTERN.test(part) && !SINGLE_DATE_PATTERN.test(part)) {
+      if (
+        picked.length < 2 &&
+        !DATE_RANGE_PATTERN.test(part) &&
+        !SINGLE_DATE_PATTERN.test(part)
+      ) {
         picked.push(part);
       }
     }
@@ -448,21 +455,23 @@ function parseExperienceBlock(block: string[]): ExperienceEntry | null {
   details.unshift(...leftoverHeaders);
   const primary = picked[0] ?? "";
   const secondary = picked[1] ?? "";
+  const nameOf = (value: string) =>
+    ROLE_WORDS.test(value) ? value : companyName(value);
 
   let company = "";
   let role = "";
   if (secondary) {
     if (ROLE_WORDS.test(primary) && !ROLE_WORDS.test(secondary)) {
       role = primary;
-      company = secondary;
+      company = nameOf(secondary);
     } else {
-      company = primary;
+      company = nameOf(primary);
       role = secondary;
     }
   } else if (ROLE_WORDS.test(primary)) {
     role = primary;
   } else {
-    company = primary;
+    company = nameOf(primary);
   }
 
   if (!hasText(company) && !hasText(role)) return null;
@@ -476,6 +485,10 @@ function parseExperienceBlock(block: string[]): ExperienceEntry | null {
   };
 }
 
+/** "Bachelor of Science, Graduation Year (2020)" -> the text without the year note. */
+const GRADUATION_NOTE =
+  /,?\s*graduat\w*(?:\s+year)?\s*[:(]?\s*(?:19|20)\d{2}\)?/i;
+
 function parseEducationBlock(block: string[]): EducationEntry | null {
   let { headers } = headerLines(block);
   if (headers.length === 0) {
@@ -486,7 +499,22 @@ function parseEducationBlock(block: string[]): EducationEntry | null {
       headers = [firstSentence];
     }
   }
-  const parts = headers.flatMap(splitHeaderLine);
+  // "Multimedia university of Kenya." ends in a full stop, so it is not read as a
+  // header line, but a short line naming a school or a degree still belongs here.
+  const extras = block
+    .map(stripBullet)
+    .filter(
+      (line) =>
+        !headers.includes(line) &&
+        line.length <= 100 &&
+        line.split(/\s+/).length <= 10 &&
+        /^[A-Z]/.test(line) &&
+        (SCHOOL_WORDS.test(line) || DEGREE_WORDS.test(line)),
+    )
+    .slice(0, 2);
+  const parts = [...headers, ...extras]
+    .map((line) => line.replace(GRADUATION_NOTE, "").trim().replace(/\.$/, ""))
+    .flatMap(splitHeaderLine);
   const filtered = parts.filter(
     (part) => !DATE_RANGE_PATTERN.test(part) && !SINGLE_DATE_PATTERN.test(part),
   );
@@ -499,12 +527,15 @@ function parseEducationBlock(block: string[]): EducationEntry | null {
     filtered.find((part) => part !== college) ??
     "";
 
-  return {
-    id: createId(),
-    college,
-    degree,
-    ...parseDates(block.join(" ")),
-  };
+  const text = block.join(" ");
+  const dates = parseDates(text);
+  const graduated = text.match(
+    /graduat\w*(?:\s+year)?\s*[:(]?\s*((?:19|20)\d{2})/i,
+  )?.[1];
+  if (!dates.startDate && !dates.endDate && graduated)
+    dates.endDate = `${graduated}-01`;
+
+  return { id: createId(), college, degree, ...dates };
 }
 
 /**
@@ -517,7 +548,10 @@ function stripTrailingDetail(text: string): string {
   return text.replace(/\s*(?:[|·•–—]|\s-\s).*$/, "").trim();
 }
 
-function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry | null {
+function parseProjectBlock(
+  block: string[],
+  urls: string[] = [],
+): ProjectEntry | null {
   const { headers, details } = headerLines(block);
   // Project titles can legitimately contain dashes ("FlowDesk — Project
   // Management Platform"), so only a bar or dot starts trailing detail.
@@ -538,7 +572,9 @@ function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry |
     .replace(/\s+/g, " ")
     .trim();
   const stackFromHeader =
-    (inlineStack.match(/,/g) ?? []).length >= 1 ? [`Tech stack: ${inlineStack}`] : [];
+    (inlineStack.match(/,/g) ?? []).length >= 1
+      ? [`Tech stack: ${inlineStack}`]
+      : [];
   // The live demo and the repository are different addresses: a GitHub link goes
   // to its own field instead of overwriting the demo link.
   const { link, github } = classifyProjectLinks([
@@ -555,7 +591,9 @@ function parseProjectBlock(block: string[], urls: string[] = []): ProjectEntry |
   return {
     id: createId(),
     title,
-    description: [...stackFromHeader, ...extra, ...details].join("\n").slice(0, 5000),
+    description: [...stackFromHeader, ...extra, ...details]
+      .join("\n")
+      .slice(0, 5000),
     link,
     github,
   };
@@ -567,13 +605,19 @@ const normalizeLinkRefs = (links: Array<string | LinkRef>): LinkRef[] =>
     .filter((link) => link.url.toLowerCase().startsWith("http"));
 
 /** Invisible symbol-font bullets and zero-width characters inside extracted text. */
-const HIDDEN_CHARS = new RegExp("[\\uE000-\\uF8FF\\u200B-\\u200D\\uFEFF\\s]+", "g");
+const HIDDEN_CHARS = new RegExp(
+  "[\\uE000-\\uF8FF\\u200B-\\u200D\\uFEFF\\s]+",
+  "g",
+);
 
 /**
  * Matches each hyperlink to the line carrying its visible words ("Live Demo",
  * "GitHub"), walking forward through the document in reading order.
  */
-function assignLinksToLines(lines: string[], links: LinkRef[]): Map<number, string[]> {
+function assignLinksToLines(
+  lines: string[],
+  links: LinkRef[],
+): Map<number, string[]> {
   // Compare without whitespace: PDF text and link text space words differently.
   // Symbol-font bullets are invisible private-use characters in the link text.
   const squash = (value: string) =>
@@ -603,7 +647,9 @@ function assignLinksToLines(lines: string[], links: LinkRef[]): Map<number, stri
         position >= cursor && !labelsOnLine.get(position)?.has(label);
       // Prefer the line that is exactly this caption ("Github") over a longer
       // one that merely contains it ("Live Demo | Github").
-      index = squashed.findIndex((line, position) => free(position) && line === label);
+      index = squashed.findIndex(
+        (line, position) => free(position) && line === label,
+      );
       if (index < 0) {
         index = squashed.findIndex(
           (line, position) => free(position) && line.includes(label),
@@ -635,7 +681,9 @@ function locateBlocks(blocks: string[][], lines: string[]): number[] {
     if (index < 0) {
       index = lines.findIndex(
         (line, position) =>
-          position >= cursor && hasText(line) && first.startsWith(stripBullet(line)),
+          position >= cursor &&
+          hasText(line) &&
+          first.startsWith(stripBullet(line)),
       );
     }
     if (index >= 0) cursor = index + 1;
@@ -644,8 +692,8 @@ function locateBlocks(blocks: string[][], lines: string[]): number[] {
 }
 
 function parseCertificationBlock(block: string[]): CertificationEntry | null {
-  const { headers } = headerLines(block);
-  const name = headers[0]?.trim() ?? "";
+  const { headers } = headerLines(block.map(stripBullet));
+  const name = headers[0]?.trim().replace(/\.$/, "") ?? "";
   if (!hasText(name)) return null;
   const dates = parseDates(block.join(" "));
   return {
@@ -655,6 +703,25 @@ function parseCertificationBlock(block: string[]): CertificationEntry | null {
     date: dates.startDate,
     link: block.join(" ").match(URL_PATTERN)?.[0] ?? "",
   };
+}
+
+/**
+ * A bulleted list of certifications ("• AWS Cloud Practitioner", "• ITIL 4
+ * Foundation") is one certification per line, unlike roles, which span lines.
+ */
+function parseCertifications(lines: string[]): CertificationEntry[] {
+  const merged = mergeWrappedLines(lines);
+  const blocks = splitBlocks(merged);
+  const oneEach =
+    blocks.length === 1 &&
+    blocks[0].length > 1 &&
+    !blocks[0].some((line) => DATE_RANGE_PATTERN.test(line));
+  const entries = oneEach
+    ? blocks[0].map((line) => [line])
+    : splitSectionBlocks(merged);
+  return entries
+    .map(parseCertificationBlock)
+    .filter((entry): entry is CertificationEntry => entry !== null);
 }
 
 const SKILL_LABEL =
@@ -670,12 +737,17 @@ function fieldForLabel(label: string): keyof Skills | "languages-or-spoken" {
 }
 
 function parseSkills(lines: string[]): Skills {
-  const skills: Skills = { languages: "", technologies: "", databases: "", spoken: "" };
+  const skills: Skills = {
+    languages: "",
+    technologies: "",
+    databases: "",
+    spoken: "",
+  };
   const seen = new Set<string>();
   let group: ReturnType<typeof fieldForLabel> | null = null;
 
   const add = (raw: string) => {
-    const value = raw.trim();
+    const value = raw.trim().replace(/\.$/, "");
     if (!value || value.length >= 60 || seen.has(value.toLowerCase())) return;
     seen.add(value.toLowerCase());
     let field: keyof Skills;
@@ -704,7 +776,8 @@ function parseSkills(lines: string[]): Skills {
       text = text.replace(/^[A-Za-z /&]+:\s*/, "");
     }
     // A slash only separates skills when spaced out; "CI/CD" and "shadcn/ui" stay whole.
-    for (const item of text.split(/[;|•]|,(?![^()]*\))|\s{3,}|\s\/\s/)) add(item);
+    for (const item of text.split(/[;|•]|,(?![^()]*\))|\s{3,}|\s\/\s/))
+      add(item);
   }
   return skills;
 }
@@ -712,7 +785,11 @@ function parseSkills(lines: string[]): Skills {
 function significantHeaderLines(lines: string[]): string[] {
   return lines.filter((line) => {
     if (!line) return false;
-    if (EMAIL_PATTERN.test(line) || PHONE_PATTERN.test(line) || URL_PATTERN.test(line)) {
+    if (
+      EMAIL_PATTERN.test(line) ||
+      PHONE_PATTERN.test(line) ||
+      URL_PATTERN.test(line)
+    ) {
       return false;
     }
     return line.length <= 100 && !isHeading(line);
@@ -734,11 +811,19 @@ function significantHeaderLines(lines: string[]): string[] {
 function prepareText(text: string): string {
   const lines = text.split("\n");
   const firstLine = lines.find(hasText)?.trim().toLowerCase();
+  const repeats = firstLine
+    ? lines.filter((line) => line.trim().toLowerCase() === firstLine).length
+    : 0;
+  // A repeated first line that is not a name ("C2 - Safaricom Internal") is a
+  // page header or footer: every copy goes. A repeated name keeps its first copy.
+  const isRunningNote =
+    repeats >= 2 && !/^[A-Za-z][A-Za-z .'-]{1,59}$/.test(firstLine ?? "");
   let seenFirst = false;
   const kept = lines.filter((line) => {
     const value = line.trim();
     if (/^page\s+\d+(\s+of\s+\d+)?$/i.test(value)) return false;
     if (firstLine && value.toLowerCase() === firstLine) {
+      if (isRunningNote) return false;
       if (seenFirst) return false;
       seenFirst = true;
     }
@@ -770,7 +855,12 @@ export function parseResumeText(
   resume.experience = [];
   resume.projects = [];
   resume.certifications = [];
-  resume.skills = { languages: "", technologies: "", databases: "", spoken: "" };
+  resume.skills = {
+    languages: "",
+    technologies: "",
+    databases: "",
+    spoken: "",
+  };
   resume.summary = "";
   resume.personal = {
     name: "",
@@ -794,12 +884,16 @@ export function parseResumeText(
   // Personal profile links come from the header only. Anywhere else a GitHub
   // address belongs to a project, not to the person.
   const firstHeading = rawLines.findIndex((line) => isHeading(line) !== null);
-  const headerEnd = firstHeading < 0 ? Math.min(rawLines.length, 12) : firstHeading;
+  const headerEnd =
+    firstHeading < 0 ? Math.min(rawLines.length, 12) : firstHeading;
   const headerUrls = [
     ...[...urlsByLine.entries()]
       .filter(([index]) => index < headerEnd)
       .flatMap(([, urls]) => urls),
-    ...(rawLines.slice(0, headerEnd).join(" ").match(new RegExp(URL_PATTERN.source, "gi")) ?? []),
+    ...(rawLines
+      .slice(0, headerEnd)
+      .join(" ")
+      .match(new RegExp(URL_PATTERN.source, "gi")) ?? []),
   ];
   for (const link of headerUrls) {
     const value = link.replace(/[),.;]+$/, "");
@@ -810,7 +904,8 @@ export function parseResumeText(
   // A link with no visible words cannot be placed on a line. A bare profile
   // address (github.com/name) is still the person's own; a repository is not.
   for (const ref of linkRefs.filter((item) => !item.label.trim())) {
-    if (/github\.com\/[^/]+\/?$/i.test(ref.url)) resume.personal.github ||= ref.url;
+    if (/github\.com\/[^/]+\/?$/i.test(ref.url))
+      resume.personal.github ||= ref.url;
   }
   if (!resume.personal.linkedIn) {
     const everywhere = [
@@ -823,21 +918,53 @@ export function parseResumeText(
 
   // Name and headline come from above the first section heading, so a CV with no
   // headline cannot mistake its summary for one.
-  const header = significantHeaderLines(
-    rawLines.slice(0, headerEnd).filter(hasText).slice(0, 12),
-  );
+  const headerRows = rawLines.slice(0, headerEnd).filter(hasText).slice(0, 24);
+  // Some CVs put the summary straight under the contact details, with no heading.
+  const isContact = (line: string) =>
+    EMAIL_PATTERN.test(line) ||
+    PHONE_PATTERN.test(line) ||
+    URL_PATTERN.test(line);
+  const paragraphAt = headerRows.findIndex((line, index) => {
+    if (index === 0 || isContact(line)) return false;
+    const words = line.split(/\s+/).length;
+    if (words < 9 || (line.match(/\s[|·•]\s/g) ?? []).length >= 2) return false;
+    const next = headerRows[index + 1];
+    return (
+      endsSentence(line) ||
+      line.length > 140 ||
+      (next !== undefined && next.split(/\s+/).length >= 6 && !isContact(next))
+    );
+  });
+  const identityRows =
+    paragraphAt < 0 ? headerRows : headerRows.slice(0, paragraphAt);
+  const looseSummary =
+    paragraphAt < 0 ? "" : headerRows.slice(paragraphAt).join(" ");
+
+  const header = significantHeaderLines(identityRows.slice(0, 12));
   if (header[0] && /^[A-Za-z][A-Za-z .'-]{1,59}$/.test(header[0])) {
     resume.personal.name = header[0];
   }
   // A headline can be long ("Junior Software Developer | React | TypeScript | …").
   if (header[1] && header[1].length <= 140 && !EMAIL_PATTERN.test(header[1])) {
     resume.personal.title = stripTrailingDetail(header[1]);
+  } else {
+    // "Software Engineer • Nairobi, Kenya • +254…": the title shares the contact line.
+    const fromContact = identityRows
+      .flatMap((line) => line.split(/\s*[|·•]\s*/))
+      .map((segment) => segment.trim())
+      .find(
+        (segment) =>
+          ROLE_WORDS.test(segment) &&
+          segment.length <= 60 &&
+          !/\d/.test(segment) &&
+          !isContact(segment),
+      );
+    if (fromContact) resume.personal.title = fromContact;
   }
 
   // Location usually shares a line with the contact details:
   // "Nairobi, Kenya | +254… | name@mail.com | github.com/name".
-  const contactSegments = rawLines
-    .slice(0, headerEnd)
+  const contactSegments = identityRows
     .flatMap((line) => line.split(/\s*[|·•]\s*/))
     .map((segment) => segment.trim());
   const place = contactSegments.find(
@@ -872,14 +999,20 @@ export function parseResumeText(
 
   if (sections.summary.some(hasText)) {
     resume.summary = sections.summary.filter(hasText).join(" ").slice(0, 2000);
+  } else if (looseSummary) {
+    resume.summary = looseSummary.slice(0, 2000);
   }
 
-  const experienceBlocks = splitSectionBlocks(mergeWrappedLines(sections.experience));
+  const experienceBlocks = splitSectionBlocks(
+    mergeWrappedLines(sections.experience),
+  );
   resume.experience = experienceBlocks
     .map(parseExperienceBlock)
     .filter((entry): entry is ExperienceEntry => entry !== null);
 
-  const educationBlocks = splitTitleBlocks(mergeWrappedLines(sections.education));
+  const educationBlocks = splitTitleBlocks(
+    mergeWrappedLines(sections.education),
+  );
   resume.education = educationBlocks
     .map(parseEducationBlock)
     .filter((entry): entry is EducationEntry => entry !== null);
@@ -901,13 +1034,16 @@ export function parseResumeText(
     })
     .filter((entry): entry is ProjectEntry => entry !== null);
 
-  const certificationBlocks = splitSectionBlocks(mergeWrappedLines(sections.certifications));
-  resume.certifications = certificationBlocks
-    .map(parseCertificationBlock)
-    .filter((entry): entry is CertificationEntry => entry !== null);
+  resume.certifications = parseCertifications(sections.certifications);
 
   if (sections.skills.some(hasText)) {
-    resume.skills = parseSkills(sections.skills.filter(hasText));
+    // A long skill line wraps ("…AWS Code" / "Pipeline"): rejoin it before splitting.
+    // Only for bulleted lists: unbulleted label lines ("DATABASES" / "PostgreSQL, …")
+    // are separate on purpose.
+    const skillLines = sections.skills.some((line) => BULLET_START.test(line))
+      ? mergeWrappedLines(sections.skills)
+      : sections.skills;
+    resume.skills = parseSkills(skillLines.filter(hasText));
   }
 
   const dropped = educationBlocks.length - resume.education.length;
@@ -918,13 +1054,17 @@ export function parseResumeText(
   }
 
   if (!sections.experience.some(hasText)) {
-    warnings.push("No work experience section was detected. Add roles manually.");
+    warnings.push(
+      "No work experience section was detected. Add roles manually.",
+    );
   }
   if (!sections.education.some(hasText)) {
     warnings.push("No education section was detected.");
   }
   if (!sections.skills.some(hasText)) {
-    warnings.push("No skills section was detected. Add your key tools and languages.");
+    warnings.push(
+      "No skills section was detected. Add your key tools and languages.",
+    );
   }
   if (!hasText(resume.summary)) {
     warnings.push("No professional summary was detected.");
@@ -958,4 +1098,57 @@ export function parseResumeText(
       ),
     },
   };
+}
+
+/**
+ * Joins the text of each PDF page into one string, dropping what repeats at the
+ * top or bottom of several pages: a company footer such as "C2 - Safaricom
+ * Internal", or the candidate's name as a running header. A repeated name keeps
+ * its copy on the first page, where it is the real heading.
+ */
+export function joinPdfPages(pages: string[]): string {
+  if (pages.length < 2) return pages.join("\n");
+
+  const edges = pages.map((page) => {
+    const lines = page
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return new Set(
+      [lines[0], lines[lines.length - 1]].filter((line): line is string =>
+        Boolean(line),
+      ),
+    );
+  });
+  const counts = new Map<string, number>();
+  for (const edge of edges) {
+    for (const line of edge) counts.set(line, (counts.get(line) ?? 0) + 1);
+  }
+
+  const running = new Set(
+    [...counts.entries()]
+      .filter(
+        ([line, count]) =>
+          count >= 2 &&
+          line.length <= 80 &&
+          !BULLET_START.test(line) &&
+          !DATE_RANGE_PATTERN.test(line) &&
+          isHeading(line) === null,
+      )
+      .map(([line]) => line),
+  );
+
+  return pages
+    .map((page, index) =>
+      page
+        .split("\n")
+        .filter((line) => {
+          const value = line.trim();
+          if (!running.has(value)) return true;
+          const isName = /^[A-Za-z][A-Za-z .'-]{1,59}$/.test(value);
+          return isName && index === 0;
+        })
+        .join("\n"),
+    )
+    .join("\n");
 }

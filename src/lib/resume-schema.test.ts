@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyResume,
   normalizeResumeData,
+  normalizeStyle,
   resumeDataSchema,
   saveResumeSchema,
   type ResumeData,
@@ -78,6 +79,9 @@ describe("design settings", () => {
       fontScale: 1,
       spacing: "normal",
       pageSize: "a4",
+      accent: "",
+      align: "template",
+      headerAlign: "template",
     });
   });
 
@@ -94,5 +98,38 @@ describe("design settings", () => {
     const parsed = resumeDataSchema.safeParse(empty);
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.style.pageSize).toBe("a4");
+  });
+});
+
+describe("text style settings", () => {
+  it("defaults to the template's own colour and alignment", () => {
+    const style = normalizeStyle(undefined);
+    expect(style.accent).toBe("");
+    expect(style.align).toBe("template");
+    expect(style.headerAlign).toBe("template");
+  });
+
+  it("keeps a valid colour and alignment", () => {
+    const style = normalizeStyle({ accent: "#1D4ED8", align: "justify", headerAlign: "center" });
+    expect(style.accent).toBe("#1d4ed8");
+    expect(style.align).toBe("justify");
+    expect(style.headerAlign).toBe("center");
+  });
+
+  it("drops anything that is not a six-digit hex colour or a known alignment", () => {
+    const style = normalizeStyle({
+      accent: "red; background:url(x)",
+      align: "right",
+      headerAlign: "middle",
+    });
+    expect(style.accent).toBe("");
+    expect(style.align).toBe("template");
+    expect(style.headerAlign).toBe("template");
+  });
+
+  it("rejects an unsafe colour when saving", () => {
+    const data = createEmptyResume();
+    data.style = { ...data.style, accent: "javascript:1" };
+    expect(resumeDataSchema.safeParse(data).success).toBe(false);
   });
 });

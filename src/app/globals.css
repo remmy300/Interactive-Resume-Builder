@@ -429,6 +429,46 @@ body {
   color: #4b5563;
 }
 
+/* Design settings chosen in the editor. They come after the templates so they
+   win, and the ATS template ignores colour on purpose (always black). */
+.cv[data-accent="on"]:not(.cv--ats) .cv-name,
+.cv[data-accent="on"]:not(.cv--ats) .cv-section__title {
+  color: var(--cv-accent);
+}
+
+.cv[data-accent="on"]:not(.cv--ats) .cv-section__title {
+  border-bottom-color: var(--cv-accent);
+}
+
+.cv--professional[data-accent="on"] .cv-header {
+  border-bottom-color: var(--cv-accent);
+}
+
+.cv--professional[data-accent="on"] .cv-section__title {
+  background-image: linear-gradient(var(--cv-accent), var(--cv-accent));
+  border-bottom-color: color-mix(in srgb, var(--cv-accent) 35%, #d1d5db);
+}
+
+.cv[data-align="left"] .cv-section > p,
+.cv[data-align="left"] .cv-bullets {
+  text-align: left;
+}
+
+.cv[data-align="justify"] .cv-section > p,
+.cv[data-align="justify"] .cv-bullets {
+  text-align: justify;
+}
+
+.cv[data-header-align="left"] .cv-header,
+.cv[data-header-align="left"] .cv-header .cv-contact {
+  text-align: left;
+}
+
+.cv[data-header-align="center"] .cv-header,
+.cv[data-header-align="center"] .cv-header .cv-contact {
+  text-align: center;
+}
+
 /* Printing: only the hidden print copy is rendered, without app chrome. */
 
 .print-only {

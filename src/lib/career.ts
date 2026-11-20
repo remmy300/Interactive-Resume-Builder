@@ -2,9 +2,7 @@ import { z } from "zod";
 import { mergeSkillList, skillItems, suggestSkillsField } from "./ats";
 import type { ResumeData, Skills } from "./resume-schema";
 
-/* -------------------------------------------------------------------------- */
-/*                              Application tracker                           */
-/* -------------------------------------------------------------------------- */
+/*Application tracker   */
 
 export const APPLICATION_STATUSES = [
   "saved",
@@ -73,15 +71,7 @@ export {
   type CoverLetterTone,
 } from "./cover-letter";
 
-function topSkills(data: ResumeData, limit = 4): string[] {
-  const ordered = [
-    ...skillItems(data.skills.technologies),
-    ...skillItems(data.skills.languages),
-  ];
-  return [...new Set(ordered)].slice(0, limit);
-}
-
-/* Job Description */
+/* Job Description*/
 
 export interface BulletSuggestion {
   id: string;
@@ -141,6 +131,7 @@ function polishBullet(bullet: string): { text: string; reasons: string[] } {
   }
 
   text = text.replace(/\s+/g, " ").trim();
+
   // Only suggest a rewrite when the wording really changed, and never insert
   // bracketed placeholder text: it would end up in the saved resume. Metrics are
   // a bonus, not a requirement, so a bullet without a number is left alone.
@@ -163,16 +154,20 @@ export function suggestBulletImprovements(
       .split("\n")
       .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
       .filter(Boolean);
+
     const entryLabel =
       [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
 
     for (const original of lines) {
       const dedupeKey = `${entry.id}:${original.toLowerCase()}`;
+
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
 
       const { text, reasons } = polishBullet(original);
+
       if (reasons.length === 0) continue;
+
       suggestions.push({
         id: `${entry.id}-${suggestions.length}`,
         entryId: entry.id,
@@ -181,6 +176,7 @@ export function suggestBulletImprovements(
         suggested: text,
         reasons,
       });
+
       if (suggestions.length >= limit) return suggestions;
     }
   }
@@ -199,7 +195,9 @@ export function applyBulletChanges(
   changes: BulletChange[],
 ): ResumeData {
   if (changes.length === 0) return data;
+
   const byEntry = new Map<string, BulletChange[]>();
+
   for (const change of changes) {
     byEntry.set(change.entryId, [
       ...(byEntry.get(change.entryId) ?? []),
@@ -211,14 +209,19 @@ export function applyBulletChanges(
     entry: T,
   ): T => {
     const entryChanges = byEntry.get(entry.id);
+
     if (!entryChanges) return entry;
+
     const next = entry.description.split("\n").map((line) => {
       const clean = line.replace(/^\s*[-•*]\s*/, "").trim();
+
       const match = entryChanges.find(
         (change) => change.original.trim() === clean,
       );
+
       return match ? match.suggested : line;
     });
+
     return { ...entry, description: next.join("\n") };
   };
 
@@ -234,22 +237,27 @@ export function addSkillsToResume(
   terms: string[],
 ): ResumeData {
   if (terms.length === 0) return data;
+
   const grouped: Partial<Record<keyof Skills, string[]>> = {};
+
   for (const term of terms) {
     const field = suggestSkillsField(term);
     grouped[field] = [...(grouped[field] ?? []), term];
   }
 
   const skills = { ...data.skills };
+
   for (const [field, values] of Object.entries(grouped)) {
     if (!values?.length) continue;
+
     const key = field as keyof Skills;
     skills[key] = mergeSkillList(skills[key], values);
   }
+
   return { ...data, skills };
 }
 
-/*                               Interview prep                               */
+/*Interview prep*/
 
 export const INTERVIEW_CATEGORIES = [
   "behavioral",
@@ -273,85 +281,262 @@ export interface InterviewQuestion {
   category: InterviewCategory;
 }
 
+function topSkills(data: ResumeData, limit = 2): string[] {
+  const ordered = [
+    ...skillItems(data.skills.languages),
+    ...skillItems(data.skills.technologies),
+    ...skillItems(data.skills.databases),
+  ];
+
+  const seen = new Set<string>();
+
+  return ordered
+    .filter((skill) => {
+      const key = skill.toLowerCase().trim();
+
+      if (!key || seen.has(key)) return false;
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
 const BEHAVIORAL_QUESTIONS = [
-  "Tell me about a time you handled a difficult stakeholder or conflicting priorities.",
-  "Describe a project that failed. What did you learn, and what would you do differently?",
-  "Tell me about a time you had to learn something quickly to deliver a result.",
-  "Give an example of when you improved a process or made work more efficient.",
-  "Describe a time you received tough feedback. How did you respond?",
-  "Tell me about a time you disagreed with a teammate. How did you resolve it?",
+  "Tell me about a time you handled conflicting priorities.",
+  "Describe a challenging project. What did you learn?",
+  "Tell me about a time you had to learn something quickly.",
+  "Give an example of when you improved a process.",
+  "Describe a time you received difficult feedback. How did you respond?",
 ];
 
-/** Builds a question bank grounded in the user's own CV. */
+/**
+ * Curated technical questions for commonly used technologies.
+ * Unknown skills receive a general experience-based question.
+ */
+const TECHNICAL_QUESTION_TEMPLATES: Record<string, string> = {
+  react:
+    "How does React manage component state, and when would you use Context API?",
+
+  nextjs:
+    "How does Next.js handle server-side rendering, and when would you use it?",
+
+  typescript: "What advantages does TypeScript provide over JavaScript?",
+
+  javascript:
+    "Can you explain the JavaScript event loop and how asynchronous operations work?",
+
+  nodejs: "How does Node.js handle concurrent requests?",
+
+  express: "How would you structure middleware in an Express application?",
+
+  postgresql: "How would you investigate and optimize a slow PostgreSQL query?",
+
+  mysql: "How would you investigate and optimize a slow MySQL query?",
+
+  mongodb:
+    "How do you decide how to structure documents and relationships in MongoDB?",
+
+  docker:
+    "What problems does Docker solve during application development and deployment?",
+
+  git: "How do you handle conflicting changes when collaborating with other developers using Git?",
+
+  prisma: "How does Prisma help manage database access and schema changes?",
+
+  firebase:
+    "What are some considerations when using Firebase for authentication and data storage?",
+
+  html: "How do semantic HTML elements improve accessibility?",
+
+  css: "How would you approach building a responsive interface using CSS?",
+
+  python:
+    "How does Python handle exceptions, and how do you use them in application development?",
+
+  php: "How does PHP handle requests in a typical web application?",
+
+  laravel: "How does Laravel's request lifecycle work?",
+};
+
+/**
+ * Normalizes questions to detect duplicates even when punctuation differs.
+ */
+function normalizeQuestion(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractDescriptionLines(description: string, limit = 2): string[] {
+  return description
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
+    .filter((line) => line.length >= 25)
+    .slice(0, limit);
+}
+
+/**
+ * Produces a technical question based on a listed skill.
+ */
+function questionFromSkill(skill: string): string {
+  const key = skill.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  return (
+    TECHNICAL_QUESTION_TEMPLATES[key] ??
+    `How have you used ${skill} in your development work, and what challenges have you encountered?`
+  );
+}
+
+/**  Maximum number of generated questions per category. */
+const QUESTION_LIMITS: Record<InterviewCategory, number> = {
+  behavioral: 5,
+  technical: 6,
+  role: 7,
+  company: 2,
+};
+
+/**
+ * Builds an interview question bank using the candidate's resume.
+ * @param data
+ * @param company.
+ * @param targetRole
+ */
 export function buildInterviewQuestions(
   data: ResumeData,
   company?: string,
+  targetRole?: string,
 ): InterviewQuestion[] {
-  const questions: InterviewQuestion[] = BEHAVIORAL_QUESTIONS.map(
-    (question) => ({
-      question,
-      category: "behavioral" as const,
-    }),
-  );
+  const questions: InterviewQuestion[] = [];
 
-  const role = data.personal.title.trim();
+  /* Behavioural questions  */
+
+  for (const question of BEHAVIORAL_QUESTIONS) {
+    questions.push({
+      question,
+      category: "behavioral",
+    });
+  }
+
+  /*  Target role  */
+
+  const role = targetRole?.trim() || data.personal.title.trim();
+
   if (role) {
     questions.push({
-      question: `Walk me through your experience as a ${role}. Which accomplishment best shows your impact?`,
+      question: `What makes your experience and skills relevant to a ${role} position?`,
       category: "role",
     });
   }
 
-  for (const entry of data.experience.slice(0, 2)) {
-    const label = entry.company.trim() || "your last role";
-    questions.push({
-      question: `What was your biggest achievement at ${label}, and how did you measure it?`,
-      category: "role",
-    });
+  /* Professional experience  */
+
+  for (const entry of data.experience.slice(0, 3)) {
+    const label = entry.role.trim() || "this role";
+    const companyName = entry.company.trim();
+
+    if (entry.role.trim() || companyName) {
+      questions.push({
+        question: `What were your main responsibilities as ${label}${
+          companyName ? ` at ${companyName}` : ""
+        }?`,
+        category: "role",
+      });
+    }
+
+    for (const line of extractDescriptionLines(entry.description, 1)) {
+      const excerpt = line.length > 220 ? `${line.slice(0, 217)}...` : line;
+
+      questions.push({
+        question: `Your resume mentions: "${excerpt}". What was your specific contribution, and how did you approach it?`,
+        category: "role",
+      });
+    }
   }
 
-  const skills = topSkills(data, 4);
-  for (const skill of skills) {
+  /* . Technical skills  */
+
+  for (const skill of topSkills(data, 2)) {
     questions.push({
-      question: `Describe a project where you used ${skill}. What trade-offs did you make?`,
+      question: questionFromSkill(skill),
       category: "technical",
     });
   }
+
+  /*  Projects  */
 
   const projects = data.projects
     .filter((project) => project.title.trim())
     .slice(0, 2);
+
   for (const project of projects) {
     questions.push({
-      question: `Tell me about ${project.title.trim()}. What problem did it solve and what would you improve?`,
+      question: `Walk me through ${project.title.trim()}. What problem did it solve, and what technical decisions did you make?`,
       category: "technical",
     });
+
+    for (const line of extractDescriptionLines(project.description, 1)) {
+      const excerpt = line.length > 180 ? `${line.slice(0, 177)}...` : line;
+
+      questions.push({
+        question: `Your project "${project.title.trim()}" includes: "${excerpt}". How did you implement this?`,
+        category: "technical",
+      });
+    }
   }
 
-  if (company?.trim()) {
+  /*  Company  */
+
+  const companyName = company?.trim();
+
+  if (companyName) {
     questions.push({
-      question: `Why do you want to work at ${company.trim()}, and how does your experience fit our product?`,
+      question: `Why are you interested in working at ${companyName}?`,
       category: "company",
     });
+
     questions.push({
-      question: `What do you know about ${company.trim()}, and what would you want to learn first?`,
+      question: `How would your experience and skills contribute to ${companyName}?`,
       category: "company",
     });
   } else {
     questions.push({
       question:
-        "What do you know about our company, and why are you applying here?",
+        "What do you know about the company you are applying to, and why are you interested in joining?",
       category: "company",
     });
   }
 
+  /*  Deduplication  */
+
   const seen = new Set<string>();
+
+  const categoryCounts: Record<InterviewCategory, number> = {
+    behavioral: 0,
+    technical: 0,
+    role: 0,
+    company: 0,
+  };
+
   return questions.filter((item) => {
-    if (seen.has(item.question)) return false;
-    seen.add(item.question);
+    const key = normalizeQuestion(item.question);
+
+    if (!key || seen.has(key)) return false;
+
+    if (categoryCounts[item.category] >= QUESTION_LIMITS[item.category]) {
+      return false;
+    }
+
+    seen.add(key);
+    categoryCounts[item.category]++;
+
     return true;
   });
 }
+
+/* Data records */
 
 export interface CoverLetterRecord {
   id: string;

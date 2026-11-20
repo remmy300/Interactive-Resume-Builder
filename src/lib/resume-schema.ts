@@ -150,6 +150,22 @@ export const FONT_CHOICES: Array<{ id: FontId; label: string; stack: string }> =
 
 export const SPACING_IDS = ["tight", "normal", "relaxed"] as const;
 export const PAGE_SIZE_IDS = ["a4", "letter"] as const;
+export const ALIGN_IDS = ["template", "left", "justify"] as const;
+export const HEADER_ALIGN_IDS = ["template", "left", "center"] as const;
+
+/** Heading colours that stay readable on white paper and in print. */
+export const ACCENT_PRESETS = [
+  { value: "", label: "Template default" },
+  { value: "#1d4ed8", label: "Blue" },
+  { value: "#0f766e", label: "Teal" },
+  { value: "#15803d", label: "Green" },
+  { value: "#b45309", label: "Amber" },
+  { value: "#b91c1c", label: "Red" },
+  { value: "#6d28d9", label: "Purple" },
+  { value: "#334155", label: "Slate" },
+] as const;
+
+export const ACCENT_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export const FONT_SCALE_MIN = 0.8;
 export const FONT_SCALE_MAX = 1.4;
@@ -162,6 +178,12 @@ export const styleSchema = z.object({
   /** Space between lines, entries and sections. */
   spacing: z.enum(SPACING_IDS).default("normal"),
   pageSize: z.enum(PAGE_SIZE_IDS).default("a4"),
+  /** Colour of the name, headings and rules. Empty keeps the template's own. */
+  accent: z.union([z.literal(""), z.string().regex(ACCENT_PATTERN)]).default(""),
+  /** Alignment of paragraphs and bullets. */
+  align: z.enum(ALIGN_IDS).default("template"),
+  /** Alignment of the name and contact block. */
+  headerAlign: z.enum(HEADER_ALIGN_IDS).default("template"),
 });
 
 export type ResumeStyle = z.infer<typeof styleSchema>;
@@ -171,6 +193,9 @@ export const DEFAULT_STYLE: ResumeStyle = {
   fontScale: 1,
   spacing: "normal",
   pageSize: "a4",
+  accent: "",
+  align: "template",
+  headerAlign: "template",
 };
 
 export const resumeDataSchema = z.object({
@@ -386,6 +411,16 @@ export function normalizeStyle(input: unknown): ResumeStyle {
     pageSize: (PAGE_SIZE_IDS as readonly unknown[]).includes(value.pageSize)
       ? (value.pageSize as ResumeStyle["pageSize"])
       : DEFAULT_STYLE.pageSize,
+    accent:
+      typeof value.accent === "string" && ACCENT_PATTERN.test(value.accent)
+        ? value.accent.toLowerCase()
+        : "",
+    align: (ALIGN_IDS as readonly unknown[]).includes(value.align)
+      ? (value.align as ResumeStyle["align"])
+      : DEFAULT_STYLE.align,
+    headerAlign: (HEADER_ALIGN_IDS as readonly unknown[]).includes(value.headerAlign)
+      ? (value.headerAlign as ResumeStyle["headerAlign"])
+      : DEFAULT_STYLE.headerAlign,
   };
 }
 

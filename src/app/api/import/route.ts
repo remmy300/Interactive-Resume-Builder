@@ -12,7 +12,7 @@ import {
   linksFromMarkdown,
   type LinkRef,
 } from "@/lib/import-links";
-import { parseResumeText } from "@/lib/resume-import";
+import { joinPdfPages, parseResumeText } from "@/lib/resume-import";
 import { logServerError } from "@/lib/server-log";
 
 export const runtime = "nodejs";
@@ -128,8 +128,9 @@ export const POST = withApiHandler(async (request) => {
           `That PDF has ${pdf.numPages} pages. CVs longer than ${MAX_PDF_PAGES} pages cannot be imported.`,
         );
       }
-      const extracted = await extractText(pdf, { mergePages: true });
-      text = extracted.text;
+      // Page by page, so a footer repeated on every page can be removed.
+      const extracted = await extractText(pdf, { mergePages: false });
+      text = joinPdfPages(extracted.text);
       links = await readPdfLinks(pdf);
     } else if (fileName.endsWith(".docx")) {
       if (!hasSignature(bytes, ZIP_SIGNATURE))

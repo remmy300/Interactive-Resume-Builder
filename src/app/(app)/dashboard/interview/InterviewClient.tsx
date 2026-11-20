@@ -39,10 +39,16 @@ export function InterviewClient() {
   const [filter, setFilter] = useState<InterviewCategory | "all">("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [notice, setNotice] = useState<{ severity: "success" | "error" | "info"; message: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    severity: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
   const [customQuestion, setCustomQuestion] = useState("");
-  const [customCategory, setCustomCategory] = useState<InterviewCategory>("behavioral");
-  const [pendingDelete, setPendingDelete] = useState<InterviewNoteRecord | null>(null);
+  const [customCategory, setCustomCategory] =
+    useState<InterviewCategory>("behavioral");
+  const [pendingDelete, setPendingDelete] =
+    useState<InterviewNoteRecord | null>(null);
+  const [targetRole, setTargetRole] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +57,9 @@ export function InterviewClient() {
         if (cancelled) return;
         setNotes(result.items);
         setAnswers(
-          Object.fromEntries(result.items.map((note) => [note.id, note.answer])),
+          Object.fromEntries(
+            result.items.map((note) => [note.id, note.answer]),
+          ),
         );
       })
       .catch((error: unknown) => {
@@ -59,7 +67,9 @@ export function InterviewClient() {
         setNotice({
           severity: "error",
           message:
-            error instanceof Error ? error.message : "Could not load interview notes.",
+            error instanceof Error
+              ? error.message
+              : "Could not load interview notes.",
         });
       })
       .finally(() => {
@@ -72,28 +82,44 @@ export function InterviewClient() {
 
   const suggestions = useMemo(() => {
     if (!library.record) return [];
-    const existing = new Set(notes.map((note) => note.question.trim().toLowerCase()));
-    return buildInterviewQuestions(library.record.data, company).filter(
-      (item) => !existing.has(item.question.trim().toLowerCase()),
+
+    const existing = new Set(
+      notes.map((note) => note.question.trim().toLowerCase()),
     );
-  }, [library.record, notes, company]);
+
+    return buildInterviewQuestions(
+      library.record.data,
+      company,
+      targetRole,
+    ).filter((item) => !existing.has(item.question.trim().toLowerCase()));
+  }, [library.record, notes, company, targetRole]);
 
   const addQuestion = async (question: string, category: InterviewCategory) => {
     if (!question.trim()) return;
     setIsSaving(true);
     try {
-      const saved = await apiFetch<InterviewNoteRecord>("/api/interview-notes", {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({ question: question.trim(), category, answer: "" }),
-      });
+      const saved = await apiFetch<InterviewNoteRecord>(
+        "/api/interview-notes",
+        {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({
+            question: question.trim(),
+            category,
+            answer: "",
+          }),
+        },
+      );
       setNotes((current) => [saved, ...current]);
       setAnswers((current) => ({ ...current, [saved.id]: saved.answer }));
       setNotice({ severity: "success", message: "Question added." });
     } catch (error) {
       setNotice({
         severity: "error",
-        message: error instanceof Error ? error.message : "Could not add the question.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not add the question.",
       });
     } finally {
       setIsSaving(false);
@@ -111,12 +137,15 @@ export function InterviewClient() {
           body: JSON.stringify({ answer: answers[note.id] ?? "" }),
         },
       );
-      setNotes((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+      setNotes((current) =>
+        current.map((item) => (item.id === saved.id ? saved : item)),
+      );
       setNotice({ severity: "success", message: "Answer saved." });
     } catch (error) {
       setNotice({
         severity: "error",
-        message: error instanceof Error ? error.message : "Could not save the answer.",
+        message:
+          error instanceof Error ? error.message : "Could not save the answer.",
       });
     } finally {
       setIsSaving(false);
@@ -130,12 +159,17 @@ export function InterviewClient() {
       await apiFetch<void>(`/api/interview-notes/${pendingDelete.id}`, {
         method: "DELETE",
       });
-      setNotes((current) => current.filter((item) => item.id !== pendingDelete.id));
+      setNotes((current) =>
+        current.filter((item) => item.id !== pendingDelete.id),
+      );
       setNotice({ severity: "success", message: "Question removed." });
     } catch (error) {
       setNotice({
         severity: "error",
-        message: error instanceof Error ? error.message : "Could not remove the question.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not remove the question.",
       });
     } finally {
       setIsSaving(false);
@@ -143,7 +177,8 @@ export function InterviewClient() {
     }
   };
 
-  const visible = filter === "all" ? notes : notes.filter((note) => note.category === filter);
+  const visible =
+    filter === "all" ? notes : notes.filter((note) => note.category === filter);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:py-8">
@@ -153,13 +188,17 @@ export function InterviewClient() {
       />
 
       {notice && (
-        <Alert severity={notice.severity} className="mb-4" onClose={() => setNotice(null)}>
+        <Alert
+          severity={notice.severity}
+          className="mb-4"
+          onClose={() => setNotice(null)}
+        >
           {notice.message}
         </Alert>
       )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <ResumeSelect
             items={library.items}
             value={library.selectedId}
@@ -174,11 +213,21 @@ export function InterviewClient() {
             slotProps={{ htmlInput: { maxLength: 120 } }}
             helperText="Adds company-specific questions."
           />
+          <TextField
+            label="Target role"
+            placeholder="e.g. Frontend Developer"
+            value={targetRole}
+            onChange={(event) => setTargetRole(event.target.value)}
+            slotProps={{ htmlInput: { maxLength: 120 } }}
+            helperText="Tailors questions to the position."
+          />
         </div>
 
         {library.record ? (
           <div className="mt-4">
-            <h2 className="text-sm font-semibold text-slate-900">Suggested questions</h2>
+            <h2 className="text-sm font-semibold text-slate-900">
+              Suggested questions
+            </h2>
             <p className="mt-1 text-xs text-slate-500">
               Add the ones you want to practise. Nothing is added automatically.
             </p>
@@ -189,14 +238,18 @@ export function InterviewClient() {
                   className="flex items-start justify-between gap-3 rounded-lg px-1 py-1.5 hover:bg-slate-50"
                 >
                   <div>
-                    <p className="text-sm text-slate-800">{suggestion.question}</p>
+                    <p className="text-sm text-slate-800">
+                      {suggestion.question}
+                    </p>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                       {CATEGORY_LABELS[suggestion.category]}
                     </p>
                   </div>
                   <Button
                     size="small"
-                    onClick={() => void addQuestion(suggestion.question, suggestion.category)}
+                    onClick={() =>
+                      void addQuestion(suggestion.question, suggestion.category)
+                    }
                     disabled={isSaving}
                   >
                     Add
@@ -217,7 +270,9 @@ export function InterviewClient() {
         )}
 
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <h2 className="text-sm font-semibold text-slate-900">Add your own question</h2>
+          <h2 className="text-sm font-semibold text-slate-900">
+            Add your own question
+          </h2>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <TextField
               label="Question"
@@ -286,10 +341,15 @@ export function InterviewClient() {
           </div>
         ) : (
           visible.map((note) => (
-            <article key={note.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <article
+              key={note.id}
+              className="rounded-xl border border-slate-200 bg-white p-4"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{note.question}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {note.question}
+                  </p>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     {CATEGORY_LABELS[note.category]}
                   </p>
@@ -306,7 +366,10 @@ export function InterviewClient() {
               <TextField
                 value={answers[note.id] ?? ""}
                 onChange={(event) =>
-                  setAnswers((current) => ({ ...current, [note.id]: event.target.value }))
+                  setAnswers((current) => ({
+                    ...current,
+                    [note.id]: event.target.value,
+                  }))
                 }
                 placeholder="Write your answer using a real example: situation, action, result."
                 multiline
