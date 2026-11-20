@@ -16,6 +16,10 @@ import {
 } from "@/lib/career";
 import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import ConfirmDialog from "@/components/builder/ConfirmDialog";
+import AnswerReview from "@/components/interview/AnswerReview";
+import { evaluateAnswer } from "@/lib/interview/evaluate-answers";
+import type { AnswerEvaluation } from "@/lib/interview/evaluation-types";
+import { extractResumeEvidence } from "@/lib/interview/resume-evidence";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 import { useResumeLibrary } from "@/hooks/useResumeLibrary";
@@ -49,6 +53,26 @@ export function InterviewClient() {
   const [pendingDelete, setPendingDelete] =
     useState<InterviewNoteRecord | null>(null);
   const [targetRole, setTargetRole] = useState("");
+  // The answer text each review was made for, so an edited answer is flagged.
+  const [reviews, setReviews] = useState<
+    Record<string, { answer: string; evaluation: AnswerEvaluation }>
+  >({});
+
+  const evidence = useMemo(
+    () => (library.record ? extractResumeEvidence(library.record.data) : undefined),
+    [library.record],
+  );
+
+  const reviewAnswer = (note: InterviewNoteRecord) => {
+    const answer = answers[note.id] ?? "";
+    const evaluation = evaluateAnswer({
+      question: note.question,
+      answer,
+      category: note.category,
+      resumeEvidence: evidence,
+    });
+    setReviews((current) => ({ ...current, [note.id]: { answer, evaluation } }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -379,7 +403,15 @@ export function InterviewClient() {
                 slotProps={{ htmlInput: { maxLength: 10000 } }}
                 helperText={`${(answers[note.id] ?? "").trim().split(/\s+/).filter(Boolean).length} words`}
               />
-              <div className="mt-2 flex justify-end">
+              <div className="mt-2 flex flex-wrap justify-end gap-2">
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => reviewAnswer(note)}
+                  disabled={!(answers[note.id] ?? "").trim()}
+                >
+                  Review answer
+                </Button>
                 <Button
                   size="small"
                   variant="contained"
@@ -389,6 +421,12 @@ export function InterviewClient() {
                   Save answer
                 </Button>
               </div>
+              {reviews[note.id] && (
+                <AnswerReview
+                  evaluation={reviews[note.id].evaluation}
+                  isStale={reviews[note.id].answer !== (answers[note.id] ?? "")}
+                />
+              )}
             </article>
           ))
         )}

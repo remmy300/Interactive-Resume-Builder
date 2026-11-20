@@ -25,7 +25,6 @@ interface EditorPanelProps {
   onSelectResume: (id: string) => void;
   onNewResume: () => void;
   onDeleteResume: () => void;
-  onSave: () => void;
   onImport: () => void;
 }
 
@@ -35,7 +34,6 @@ export function EditorPanel({
   onSelectResume,
   onNewResume,
   onDeleteResume,
-  onSave,
   onImport,
 }: EditorPanelProps) {
   const validity = checkResumeValidity(editor.data);
@@ -72,19 +70,6 @@ export function EditorPanel({
             disabled={editor.isLoading}
           >
             Import CV
-          </Button>
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={onSave}
-            disabled={
-              editor.isSaving ||
-              editor.isLoading ||
-              !editor.isDirty ||
-              !validity.valid
-            }
-          >
-            {editor.isSaving ? "Saving…" : "Save resume"}
           </Button>
         </div>
         {!validity.valid && (

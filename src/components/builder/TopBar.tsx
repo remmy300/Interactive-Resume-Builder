@@ -5,7 +5,6 @@ import PrintIcon from "@mui/icons-material/Print";
 import SaveIcon from "@mui/icons-material/Save";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import ListItemText from "@mui/material/ListItemText";
@@ -22,7 +21,6 @@ interface TopBarProps {
   isSaving: boolean;
   isLoading: boolean;
   saveState: SaveState;
-  hasResume: boolean;
   atsScore: number;
   canSave: boolean;
   canExport: boolean;
@@ -36,27 +34,6 @@ interface TopBarProps {
   onSignOut: () => void;
 }
 
-function statusFor({
-  isDirty,
-  isSaving,
-  isLoading,
-  saveState,
-  hasResume,
-}: Pick<
-  TopBarProps,
-  "isDirty" | "isSaving" | "isLoading" | "saveState" | "hasResume"
->): { label: string; color: "default" | "success" | "warning" | "error" } {
-  if (isLoading) return { label: "Loading…", color: "default" };
-  if (isSaving) return { label: "Saving…", color: "default" };
-  if (saveState === "error") return { label: "Save failed", color: "error" };
-  if (isDirty) {
-    return hasResume
-      ? { label: "Unsaved changes", color: "warning" }
-      : { label: "Draft not saved", color: "warning" };
-  }
-  return { label: "All changes saved", color: "success" };
-}
-
 export function TopBar({
   email,
   name,
@@ -64,13 +41,11 @@ export function TopBar({
   isSaving,
   isLoading,
   saveState,
-  hasResume,
   atsScore,
   canSave,
   canExport,
   blockedReason,
   onSave,
-  onPreview,
   onOpenAts,
   onPrint,
   onExport,
@@ -78,8 +53,16 @@ export function TopBar({
   onSignOut,
 }: TopBarProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const status = statusFor({ isDirty, isSaving, isLoading, saveState, hasResume });
   const initials = (name || email || "?").trim().charAt(0).toUpperCase();
+
+  // The one Save button also tells you where the resume stands.
+  const saveLabel = isSaving
+    ? "Saving…"
+    : saveState === "error"
+      ? "Retry save"
+      : isDirty
+        ? "Save"
+        : "Saved";
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
@@ -89,20 +72,11 @@ export function TopBar({
             R
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold text-slate-900">Resume Studio</p>
             <p className="hidden text-xs text-slate-500 sm:block">
               ATS-friendly resume builder
             </p>
           </div>
         </div>
-
-        <Chip
-          size="small"
-          label={status.label}
-          color={status.color}
-          variant={status.color === "default" ? "outlined" : "filled"}
-          sx={{ ml: { xs: 0, sm: 1 } }}
-        />
 
         <div className="ml-auto flex items-center gap-2">
           <Tooltip title={blockedReason || "Save (Ctrl/⌘ + S)"}>
@@ -112,9 +86,14 @@ export function TopBar({
                 variant="outlined"
                 startIcon={<SaveIcon />}
                 onClick={onSave}
-                disabled={!isDirty || isSaving || isLoading || !canSave}
+                disabled={
+                  isSaving ||
+                  isLoading ||
+                  !canSave ||
+                  (!isDirty && saveState !== "error")
+                }
               >
-                Save
+                {saveLabel}
               </Button>
             </span>
           </Tooltip>
@@ -127,9 +106,7 @@ export function TopBar({
           >
             Quality {atsScore}
           </Button>
-          <Button size="small" variant="text" onClick={onPreview}>
-            Preview
-          </Button>
+
           <Tooltip title={blockedReason || "Download a text-based PDF"}>
             <span>
               <Button
@@ -149,7 +126,15 @@ export function TopBar({
             aria-expanded={Boolean(anchor)}
             onClick={(event) => setAnchor(event.currentTarget)}
           >
-            <Avatar sx={{ width: 30, height: 30, bgcolor: "#f1f5f9", color: "#334155", fontSize: 14 }}>
+            <Avatar
+              sx={{
+                width: 30,
+                height: 30,
+                bgcolor: "#f1f5f9",
+                color: "#334155",
+                fontSize: 14,
+              }}
+            >
               {initials}
             </Avatar>
           </IconButton>

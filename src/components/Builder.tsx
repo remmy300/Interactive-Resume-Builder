@@ -11,6 +11,10 @@ import AtsDialog from "@/components/builder/AtsDialog";
 import ConfirmDialog from "@/components/builder/ConfirmDialog";
 import EditorPanel from "@/components/builder/EditorPanel";
 import ImportCvDialog from "@/components/builder/ImportCvDialog";
+import ImportReviewDialog, {
+  hasReviewItems,
+  type ImportReview,
+} from "@/components/builder/ImportReviewDialog";
 import PreviewDialog from "@/components/builder/PreviewDialog";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import TopBar from "@/components/builder/TopBar";
@@ -55,6 +59,7 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
   const [isBusy, setIsBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [undoId, setUndoId] = useState<string | null>(null);
+  const [importReview, setImportReview] = useState<ImportReview | null>(null);
 
   const { save, isDirty, resumeId, items, data, title, currentItem } = editor;
   const atsScore = useMemo(() => analyzeResume(data).score, [data]);
@@ -253,7 +258,6 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
           isSaving={editor.isSaving}
           isLoading={editor.isLoading}
           saveState={editor.saveState}
-          hasResume={Boolean(resumeId)}
           atsScore={atsScore}
           canSave={validity.valid}
           canExport={validity.valid}
@@ -294,7 +298,6 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
                 title: currentItem.title,
               });
             }}
-            onSave={() => void editor.save()}
             onImport={requestImport}
           />
 
@@ -327,9 +330,17 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
             open={importOpen}
             onClose={() => setImportOpen(false)}
             onGoToSection={goToSection}
-            onImported={async (imported, importedTitle, warnings) => {
+            onImported={async (imported, importedTitle, warnings, review) => {
               const result = await editor.importResume(imported, importedTitle);
-              const extra = warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
+              // The notice stays short; the review dialog carries the detail and the
+              // text that could not be placed.
+              const needsReview = hasReviewItems(review);
+              if (needsReview) setImportReview(review);
+              const shown = needsReview ? warnings.slice(0, 1) : warnings;
+              const extra =
+                shown.length > 0
+                  ? ` ${shown.join(" ")}${needsReview ? " See the review for the rest." : ""}`
+                  : "";
               setNotice(
                 result.saved
                   ? {
@@ -342,6 +353,14 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
                     },
               );
             }}
+          />
+        )}
+
+        {importReview && (
+          <ImportReviewDialog
+            open
+            review={importReview}
+            onClose={() => setImportReview(null)}
           />
         )}
 

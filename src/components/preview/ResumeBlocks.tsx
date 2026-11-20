@@ -9,9 +9,6 @@ import type {
 import { formatMonth, formatRange } from "@/utils/Date";
 import { normalizeLink } from "@/utils/Form";
 
-
-
-
 export const hasText = (value: string) => value.trim().length > 0;
 
 export function Bullets({ text }: { text: string }) {
@@ -31,7 +28,13 @@ export function Bullets({ text }: { text: string }) {
   );
 }
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <section className="cv-section">
       <h2 className="cv-section__title">{title}</h2>
@@ -64,26 +67,30 @@ export function ExperienceList({
           <span className="cv-placeholder">Your role</span>
         );
         return (
-        <article className="cv-entry" key={entry.id}>
-          <div className="cv-entry__row">
-            <h3 className="cv-entry__title">{roleFirst ? role : company}</h3>
-            <span className="cv-entry__meta">
-              {hasText(entry.startDate) || hasText(entry.endDate) || entry.current
-                ? formatRange(entry.startDate, entry.endDate, entry.current)
-                : !isPrint && <span className="cv-placeholder">2023 – Present</span>}
-            </span>
-          </div>
-          <p className="cv-entry__sub">{roleFirst ? company : role}</p>
-          {hasText(entry.description) ? (
-            <Bullets text={entry.description} />
-          ) : (
-            !isPrint && (
-              <ul className="cv-bullets cv-placeholder">
-                <li>Describe an achievement with a measurable result.</li>
-              </ul>
-            )
-          )}
-        </article>
+          <article className="cv-entry" key={entry.id}>
+            <div className="cv-entry__row">
+              <h3 className="cv-entry__title">{roleFirst ? role : company}</h3>
+              <span className="cv-entry__meta">
+                {hasText(entry.startDate) ||
+                hasText(entry.endDate) ||
+                entry.current
+                  ? formatRange(entry.startDate, entry.endDate, entry.current)
+                  : !isPrint && (
+                      <span className="cv-placeholder">2023 – Present</span>
+                    )}
+              </span>
+            </div>
+            <p className="cv-entry__sub">{roleFirst ? company : role}</p>
+            {hasText(entry.description) ? (
+              <Bullets text={entry.description} />
+            ) : (
+              !isPrint && (
+                <ul className="cv-bullets cv-placeholder">
+                  <li>Describe an achievement with a measurable result.</li>
+                </ul>
+              )
+            )}
+          </article>
         );
       })}
     </>
@@ -110,9 +117,13 @@ export function EducationList({
               )}
             </h3>
             <span className="cv-entry__meta">
-              {hasText(entry.startDate) || hasText(entry.endDate) || entry.current
+              {hasText(entry.startDate) ||
+              hasText(entry.endDate) ||
+              entry.current
                 ? formatRange(entry.startDate, entry.endDate, entry.current)
-                : !isPrint && <span className="cv-placeholder">2019 – 2023</span>}
+                : !isPrint && (
+                    <span className="cv-placeholder">2019 – 2023</span>
+                  )}
             </span>
           </div>
           <p className="cv-entry__sub">
@@ -298,11 +309,11 @@ export function CertificationList({
             )}
           </div>
           <p className="cv-entry__sub">
-            {hasText(entry.issuer) ? (
-              entry.issuer
-            ) : (
-              !isPrint && <span className="cv-placeholder">Issuing organisation</span>
-            )}
+            {hasText(entry.issuer)
+              ? entry.issuer
+              : !isPrint && (
+                  <span className="cv-placeholder">Issuing organisation</span>
+                )}
             {hasText(entry.link) && (
               <>
                 {" · "}
@@ -330,7 +341,6 @@ export function SkillsBlock({
 }: {
   data: ResumeData;
   compact: boolean;
-  /** One line of skills separated by bars, without group labels. */
   flat?: boolean;
 }) {
   if (flat) {
@@ -469,18 +479,15 @@ export function HeaderBlock({
   data: ResumeData;
   isPrint: boolean;
   center: boolean;
-  /** Contact line under the headline (off for the two-column sidebar layout). */
   showContact?: boolean;
   emailFirst?: boolean;
 }) {
   return (
     <header className={`cv-header${center ? " cv-header--center" : ""}`}>
       <h1 className="cv-name">
-        {hasText(data.personal.name) ? (
-          data.personal.name
-        ) : (
-          !isPrint && <span className="cv-placeholder">Your name</span>
-        )}
+        {hasText(data.personal.name)
+          ? data.personal.name
+          : !isPrint && <span className="cv-placeholder">Your name</span>}
       </h1>
       {(hasText(data.personal.title) || !isPrint) && (
         <p className="cv-role">

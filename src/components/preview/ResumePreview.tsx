@@ -15,15 +15,12 @@ import {
 
 interface ResumePreviewProps {
   data: ResumeData;
-  /** Print copies never render placeholder copy. */
   isPrint?: boolean;
 }
 
-// How much the "spacing" setting stretches gaps and line height.
 const SPACE = { tight: 0.72, normal: 1, relaxed: 1.3 } as const;
 const LINE = { tight: 0.93, normal: 1, relaxed: 1.1 } as const;
 
-/** Design settings as CSS variables, read by the .cv styles in globals.css. */
 function styleVariables(data: ResumeData): CSSProperties {
   const { font, fontScale, spacing, pageSize, accent } = data.style;
   const stack = FONT_CHOICES.find((choice) => choice.id === font)?.stack;
@@ -36,7 +33,6 @@ function styleVariables(data: ResumeData): CSSProperties {
     ...(accent ? { "--cv-accent": accent } : {}),
   } as CSSProperties;
 }
-
 
 export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
   const experience = data.experience.filter(
@@ -77,8 +73,6 @@ export function ResumePreview({ data, isPrint = false }: ResumePreviewProps) {
     hasText(data.skills.databases) ||
     hasText(data.skills.spoken);
 
-  // On screen an untouched section falls back to the first (empty) entry so
-  // the preview still shows helpful placeholder copy.
   const experienceForDisplay = isPrint
     ? experience
     : experience.length

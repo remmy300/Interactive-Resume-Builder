@@ -16,7 +16,6 @@ interface PreviewFrameProps {
   onMetrics?: (metrics: PreviewMetrics) => void;
 }
 
-// Empty space shown between pages on screen. It is not part of the document.
 const PAGE_GAP_PX = 28;
 
 /**
@@ -53,7 +52,9 @@ export function PreviewFrame({
       const nextScale = Math.min(1, container.clientWidth / size.widthPx);
       const nextStarts = measurePageStarts(content, nextScale, windowHeight);
       setScale(nextScale);
-      setStarts((current) => (sameStarts(current, nextStarts) ? current : nextStarts));
+      setStarts((current) =>
+        sameStarts(current, nextStarts) ? current : nextStarts,
+      );
       onMetricsRef.current?.(
         metricsFromStarts(nextStarts, content.scrollHeight, windowHeight),
       );
@@ -82,9 +83,11 @@ export function PreviewFrame({
         >
           {starts.map((start, index) => {
             const next = starts[index + 1];
-            // Show only whole blocks: stop where the next page begins.
+
             const visible =
-              next === undefined ? windowHeight : Math.min(windowHeight, next - start);
+              next === undefined
+                ? windowHeight
+                : Math.min(windowHeight, next - start);
             return (
               <div
                 key={index}
@@ -100,7 +103,11 @@ export function PreviewFrame({
               >
                 <div
                   className="absolute left-0 overflow-hidden"
-                  style={{ top: PAGE_MARGIN_PX, width: size.widthPx, height: visible }}
+                  style={{
+                    top: PAGE_MARGIN_PX,
+                    width: size.widthPx,
+                    height: visible,
+                  }}
                 >
                   <div
                     ref={index === 0 ? contentRef : undefined}

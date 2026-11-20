@@ -13,6 +13,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import type { EditorSectionId } from "@/lib/editor-sections";
 import type { ResumeData } from "@/lib/resume-schema";
+import type { ImportReview } from "@/components/builder/ImportReviewDialog";
 
 interface ImportResponse {
   data: ResumeData;
@@ -25,6 +26,10 @@ interface ImportResponse {
     skills: number;
   };
   fileName: string;
+  rejected?: ImportReview["rejected"];
+  unassigned?: ImportReview["unassigned"];
+  incomplete?: ImportReview["incomplete"];
+  confidence?: ImportReview["confidence"];
 }
 
 interface ImportCvDialogProps {
@@ -35,8 +40,8 @@ interface ImportCvDialogProps {
     data: ResumeData,
     title: string,
     warnings: string[],
+    review: ImportReview,
   ) => void | Promise<void>;
-  /** Closes the dialog and jumps to a section of the editor. */
   onGoToSection: (section: EditorSectionId) => void;
 }
 
@@ -44,14 +49,14 @@ const ACCEPT = ".pdf,.docx,.txt,.md";
 const MAX_BYTES = 5 * 1024 * 1024;
 const STEP_DELAY_MS = 320;
 // How long the final "Found N sections" line stays up before the dialog closes.
-const CLOSE_DELAY_MS = 900;
+const CLOSE_DELAY_MS = 500;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** How many editor sections the CV filled, and how many entries they hold. */
 function summarise(data: ResumeData): { sections: number; entries: number } {
   const skills = Object.values(data.skills).reduce(
-    (count, value) => count + value.split(",").filter((item) => item.trim()).length,
+    (count, value) =>
+      count + value.split(",").filter((item) => item.trim()).length,
     0,
   );
   const counts = [
@@ -127,7 +132,6 @@ export function ImportCvDialog({
     };
   }, []);
 
-  /** Uploads and reads the file as soon as it is chosen, then closes itself. */
   const importFile = async (file: File | null) => {
     if (!file || isRunning) return;
     setResult(null);
@@ -165,11 +169,14 @@ export function ImportCvDialog({
       const title = payload.data.personal.name
         ? `${payload.data.personal.name} — CV`
         : `${baseName} — Imported`;
-      // Saving the new resume happens here, so wait for it before closing.
-      await onImported(payload.data, title, payload.warnings);
+      await onImported(payload.data, title, payload.warnings, {
+        rejected: payload.rejected ?? [],
+        unassigned: payload.unassigned ?? [],
+        incomplete: payload.incomplete ?? [],
+        confidence: payload.confidence ?? {},
+      });
       await wait(CLOSE_DELAY_MS);
       if (!mountedRef.current) return;
-      // Extraction is done and the editor is filled: hand the screen back.
       onGoToSection("personal");
     } catch (importError) {
       if (!mountedRef.current) return;
@@ -187,7 +194,11 @@ export function ImportCvDialog({
   const summary = result ? summarise(result.data) : { sections: 0, entries: 0 };
   const showProgress = Boolean(fileName) && !error;
   const stepState = (step: 1 | 2 | 3): "waiting" | "active" | "done" =>
-    stage >= step ? "done" : stage === step - 1 && isRunning ? "active" : "waiting";
+    stage >= step
+      ? "done"
+      : stage === step - 1 && isRunning
+        ? "active"
+        : "waiting";
 
   return (
     <Dialog
@@ -201,8 +212,7 @@ export function ImportCvDialog({
         {!showProgress ? (
           <>
             <p className="text-sm text-slate-600">
-              Choose a PDF, DOCX, TXT, or Markdown file. It is read as soon as you
-              select it and fills in your resume for you to review.
+              Choose a PDF, DOCX, TXT, or Markdown file.
             </p>
 
             <div
@@ -248,22 +258,27 @@ export function ImportCvDialog({
             </div>
 
             {error && (
-              <Alert severity="error" icon={<ErrorOutlineIcon />} className="mt-3">
+              <Alert
+                severity="error"
+                icon={<ErrorOutlineIcon />}
+                className="mt-3"
+              >
                 {error}
               </Alert>
             )}
-
-            <p className="mt-3 text-xs text-slate-500">
-              Importing replaces the current draft. Saved resumes are not changed
-              until you press Save.
-            </p>
           </>
         ) : (
           <div>
-            <p className="truncate text-sm font-medium text-slate-900">{fileName}</p>
+            <p className="truncate text-sm font-medium text-slate-900">
+              {fileName}
+            </p>
 
             <ul className="mt-2 divide-y divide-slate-100">
-              <Step label="Reading the file" detail="File read" state={stepState(1)} />
+              <Step
+                label="Reading the file"
+                detail="File read"
+                state={stepState(1)}
+              />
               <Step
                 label="Finding sections"
                 detail={`${summary.sections} sections`}
