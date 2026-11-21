@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AddIcon from "@mui/icons-material/Add";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -47,11 +47,18 @@ function formatUpdated(value: string): string {
 }
 
 /** Every saved resume in one place: open, duplicate, or delete (with undo). */
-export function ResumesClient() {
-  const [items, setItems] = useState<ResumeItem[]>([]);
-  const [total, setTotal] = useState(0);
+export function ResumesClient({
+  initial,
+}: {
+  /** Loaded on the server. Without it the list is fetched after the page opens. */
+  initial?: { items: ResumeItem[]; total: number };
+} = {}) {
+  const [items, setItems] = useState<ResumeItem[]>(initial?.items ?? []);
+  const [total, setTotal] = useState(initial?.total ?? 0);
   const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initial);
+  // The search text the list on screen was loaded for. A preloaded list is for "".
+  const loadedFor = useRef<string | null>(initial ? "" : null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ResumeItem | null>(null);
@@ -63,6 +70,7 @@ export function ResumesClient() {
       const result = await apiFetch<ListResponse>(`/api/resumes?${params}`);
       setItems(result.items);
       setTotal(result.total);
+      loadedFor.current = search;
     } catch (error) {
       setNotice({
         severity: "error",
@@ -75,6 +83,8 @@ export function ResumesClient() {
 
   // Debounced search; also the initial load.
   useEffect(() => {
+    // Already showing this search: nothing to ask for.
+    if (loadedFor.current === query) return;
     const timer = setTimeout(() => void load(query), query ? 250 : 0);
     return () => clearTimeout(timer);
   }, [query, load]);

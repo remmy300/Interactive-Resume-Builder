@@ -113,8 +113,26 @@ export default function Builder({
     window.location.assign("/login?next=/dashboard/resume");
   };
 
-  const handlePrint = () => {
+  // The print copy lays the whole resume out off-screen, which is heavy, so it
+  // is added once the page is idle instead of during the first render.
+  const [printReady, setPrintReady] = useState(false);
+  useEffect(() => {
+    const idle = window.requestIdleCallback;
+    if (idle) {
+      const handle = idle(() => setPrintReady(true), { timeout: 3000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = window.setTimeout(() => setPrintReady(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handlePrint = async () => {
     if (guest) return requireSignIn();
+    if (!printReady) {
+      // Printed before the page went idle: build the copy now and let it lay out.
+      setPrintReady(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+    }
     const previousTitle = document.title;
     document.title = safeFileName(
       data.personal.name || title || "resume",
@@ -500,7 +518,7 @@ export default function Builder({
       </main>
 
       {/* Printed instead of the app: real text, clickable links, ATS readable. */}
-      <PrintPages data={deferredData} />
+      {printReady && <PrintPages data={deferredData} />}
     </>
   );
 }

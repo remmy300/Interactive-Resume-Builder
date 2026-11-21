@@ -55,10 +55,16 @@ const STATUS_BADGES: Record<ApplicationStatus, string> = {
   rejected: "bg-red-100 text-red-700",
 };
 
-export function ApplicationsClient() {
-  const [items, setItems] = useState<ApplicationRecord[]>([]);
+export function ApplicationsClient({
+  initialItems,
+}: {
+  /** Loaded on the server. Without it the list is fetched after the page opens. */
+  initialItems?: ApplicationRecord[];
+} = {}) {
+  const [items, setItems] = useState<ApplicationRecord[]>(initialItems ?? []);
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialItems);
+  const hasInitial = Boolean(initialItems);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: "success" | "error" | "info"; message: string } | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -67,6 +73,7 @@ export function ApplicationsClient() {
   const [pendingDelete, setPendingDelete] = useState<ApplicationRecord | null>(null);
 
   useEffect(() => {
+    if (hasInitial) return;
     let cancelled = false;
     apiFetch<ListResponse>("/api/applications")
       .then((result) => {
@@ -86,7 +93,7 @@ export function ApplicationsClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasInitial]);
 
   const openNew = () => {
     setEditingId(null);

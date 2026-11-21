@@ -36,13 +36,23 @@ const CATEGORY_LABELS: Record<InterviewCategory, string> = {
   company: "Company",
 };
 
-export function InterviewClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+export function InterviewClient({
+  initial,
+  initialNotes,
+}: {
+  initial?: PreloadedLibrary;
+  /** Loaded on the server. Without them the notes are fetched after the page opens. */
+  initialNotes?: InterviewNoteRecord[];
+} = {}) {
   const library = useResumeLibrary(initial);
-  const [notes, setNotes] = useState<InterviewNoteRecord[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<InterviewNoteRecord[]>(initialNotes ?? []);
+  const [answers, setAnswers] = useState<Record<string, string>>(() =>
+    Object.fromEntries((initialNotes ?? []).map((note) => [note.id, note.answer])),
+  );
   const [company, setCompany] = useState("");
   const [filter, setFilter] = useState<InterviewCategory | "all">("all");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialNotes);
+  const hasInitialNotes = Boolean(initialNotes);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{
     severity: "success" | "error" | "info";
@@ -76,6 +86,7 @@ export function InterviewClient({ initial }: { initial?: PreloadedLibrary } = {}
   };
 
   useEffect(() => {
+    if (hasInitialNotes) return;
     let cancelled = false;
     apiFetch<ListResponse>("/api/interview-notes")
       .then((result) => {
@@ -103,7 +114,7 @@ export function InterviewClient({ initial }: { initial?: PreloadedLibrary } = {}
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasInitialNotes]);
 
   const suggestions = useMemo(() => {
     if (!library.record) return [];

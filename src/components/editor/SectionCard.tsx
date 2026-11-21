@@ -51,6 +51,10 @@ export function SectionCard({
       id={domId}
       expanded={expanded}
       onChange={(_event, next) => setExpanded(next)}
+      // A collapsed section keeps none of its fields mounted, so the page only
+      // builds the inputs that are on screen. Values live in the resume data,
+      // not in the inputs, so nothing is lost when a section closes.
+      slotProps={{ transition: { unmountOnExit: true } }}
       sx={{ scrollMarginTop: 12 }}
     >
       <AccordionSummary

@@ -49,14 +49,22 @@ interface ListResponse {
   items: CoverLetterRecord[];
 }
 
-export function CoverLettersClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+export function CoverLettersClient({
+  initial,
+  initialLetters,
+}: {
+  initial?: PreloadedLibrary;
+  /** Loaded on the server. Without it the letters are fetched after the page opens. */
+  initialLetters?: CoverLetterRecord[];
+} = {}) {
   const library = useResumeLibrary(initial);
-  const [letters, setLetters] = useState<CoverLetterRecord[]>([]);
+  const [letters, setLetters] = useState<CoverLetterRecord[]>(initialLetters ?? []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [tone, setTone] = useState<CoverLetterTone>("professional");
   const [jobDescription, setJobDescription] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialLetters);
+  const hasInitialLetters = Boolean(initialLetters);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{ severity: "success" | "error" | "info"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -78,6 +86,7 @@ export function CoverLettersClient({ initial }: { initial?: PreloadedLibrary } =
   const [linkDialog, setLinkDialog] = useState({ open: false, title: "" });
 
   useEffect(() => {
+    if (hasInitialLetters) return;
     let cancelled = false;
     apiFetch<ListResponse>("/api/cover-letters")
       .then((result) => {
@@ -97,7 +106,7 @@ export function CoverLettersClient({ initial }: { initial?: PreloadedLibrary } =
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasInitialLetters]);
 
   const selectLetter = (letter: CoverLetterRecord) => {
     setSelectedId(letter.id);
