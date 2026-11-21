@@ -1,7 +1,8 @@
 import { ACTION_VERBS } from "./ats-data";
 import { normalizeTerm, SKILL_ALIASES } from "./ats-skills";
 import { hasText, resumeBullets, resumeText, skillItems } from "./ats-text";
-import type { AtsCheck, AtsStatus } from "./ats";
+import { withWeights } from "./ats-scoring";
+import { isValidCheck, type AtsCheck, type AtsStatus } from "./ats-types";
 import type { ResumeData } from "./resume-schema";
 
 const MAX_EXAMPLES = 3;
@@ -10,10 +11,10 @@ const WEAK_PHRASES =
   /\b(responsible for|duties (included|include)|worked on|helped (to |with )?|assisted (with|in)|involved in|participated in|tasked with|contributed to|various|etc\.?|and more)\b/i;
 
 const CLICHES =
-  /\b(hard[- ]?working|team player|results[- ]driven|detail[- ]oriented|self[- ]motivated|go[- ]getter|fast learner|quick learner|passionate about|dynamic|synergy|think outside the box|excellent communication skills|strong work ethic|highly motivated)\b/i;
+  /\b(hard[- ]?working|team player|results[- ]driven|detail[- ]oriented|self[- ]motivated|go[- ]getter|fast learner|quick learner|passionate about|synergy|think outside the box|excellent communication skills|strong work ethic|highly motivated)\b/i;
 
 const PLACEHOLDER_PATTERN =
-  /\[[^\]]*(?:add|insert|replace|your|metric|result|query|todo|tbd|example|company|role|date)[^\]]*\]|\b(?:lorem ipsum|add a measurable result|one real sql query)\b/gi;
+  /\[[^\]]*(?:add|insert|replace|your|metric|number|percent(?:age)?|result|query|todo|tbd|example|company|role|date|describe|achievement|name|title|link|url|skill)[^\]]*\]|\b(?:lorem ipsum|add a measurable result|one real sql query|your (?:name|title|role|company) here)\b|\b(?:by|of|to)\s+(?:X|XX)\s?%|\bX{2,}\s?%|_{4,}/gi;
 
 const EXPLICIT_PLACEHOLDER = /\b(?:TODO|TBD|FIXME)\b/g;
 
@@ -21,11 +22,19 @@ const EXPLICIT_PLACEHOLDER = /\b(?:TODO|TBD|FIXME)\b/g;
 // a large count, or a number of people/requests/time. A bare "5 apps" or
 // "team of 10" is scope, not impact, so it does not count.
 const METRIC =
-  /(\d+(\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(,\d{3})+\b|\b\d+\+?\s?(?:users?|customers?|clients?|visitors?|requests?|orders?|transactions?|records?|sessions?|downloads?|views?|ms|milliseconds?|seconds?|minutes?|hours?|days?|weeks?)\b)/i;
+  /(\d+(\.\d+)?\s?%|[$£€₦]\s?\d|\b\d+(\.\d+)?\s?[kKmMbB]\b|\b\d+x\b|\b\d{1,3}(,\d{3})+\b|\b\d+\+?\s?(?:users?|customers?|clients?|visitors?|requests?|orders?|transactions?|records?|sessions?|downloads?|views?|ms|s|secs?|milliseconds?|seconds?|minutes?|mins?|hrs?|hours?|days?|weeks?|bugs?|defects?|tickets?|incidents?|errors?|leads?|sales|sign-?ups?|subscribers?)\b)/i;
 
 // Words that describe a result, not just an activity.
 const OUTCOME =
   /\b(?:reduc\w*|improv\w*|increas\w*|decreas\w*|cut|saved?|saving|boost\w*|faster|speed\w*|eliminat\w*|prevent\w*|catch\w*|caught|resolv\w*|rais\w*|grew|growth|lower\w*|accelerat\w*|streamlin\w*|achiev\w*|generat\w*|drove|won|launched|shipped|released|adopted)\b/i;
+
+// An outcome stated in words: "…so reviewers could approve faster".
+const RESULT_CLAUSE =
+  /\b(?:resulting in|which (?:allowed|enabled|helped|let|made|reduced|improved|saved|cut)|so (?:that )?\w+ (?:could|can|would)|enabling|allowing|leading to|ensuring|making (?:it )?(?:easier|faster|simpler|safer)|for (?:faster|easier|better|safer))\b/i;
+
+// Big claims with nothing behind them: they describe the writer, not the work.
+const UNSUPPORTED_CLAIM =
+  /\b(?:expert in|world[- ]class|best[- ]in[- ]class|top performer|extensive experience|proven track record|outstanding|exceptional|unmatched|second to none|guru|ninja|rockstar)\b/i;
 
 const EVIDENCE_TERMS =
   /\b(?:api|apis|endpoint|endpoints|database|databases|schema|service|services|microservices?|architecture|pipeline|pipelines|ci\/cd|deployment|deployments|docker|kubernetes|aws|azure|gcp|cloud|server|servers|backend|frontend|react|next\.?js|typescript|javascript|python|node\.?js|sql|postgres(?:ql)?|mysql|mongodb|redis|graphql|rest|grpc|webhook|webhooks|queue|queues|cache|caching|authentication|oauth|authorization|security|encryption|tests?|testing|unit tests?|integration tests?|code review|refactor|refactoring|migration|migrations|performance|latency|throughput|accessibility|responsive|component|components|library|libraries|design system|feature|features|integration|integrations|automation|automated|script|scripts|framework|frameworks|process|workflow|workflows|campaign|campaigns|curriculum|patients?|students?|clients?|customers?|invoices?|compliance|audit|audits|budget|budgets|forecast|forecasting|contract|contracts|supply chain|inventory|logistics|policy|policies|training|program|programs|event|events|reports?|analysis|research|stakeholders?|vendors?|operations|revenue|cost|costs|sales|marketing)\b/i;
@@ -34,10 +43,10 @@ const PASSIVE =
   /\b(?:was|were|is|are|been|being|be)\s+(?:\w+ly\s+)?(?:\w+(?:ed|en)|built|written|made|done|run|led|held|sent|kept|found|given|taken|seen|shown|deployed|managed|used)\b/i;
 
 const RESPONSIBILITY_START =
-  /^(?:responsible for|duties (?:included|include)|worked on|helped (?:to|with)?|assisted (?:with|in)|involved in|participated in|tasked with|contributed to)\b/i;
+  /^(?:responsible for|in charge of|accountable for|duties (?:included|include)|worked on|worked with|helped (?:to|with)?|assisted (?:with|in)|involved in|participated in|tasked with|contributed to)\b/i;
 
 const VAGUE_WORDS =
-  /\b(?:various|etc\.?|and more|stuff|things|tasks|responsibilities|duties)\b/i;
+  /\b(?:various|etc\.?|and more|stuff|things|tasks|responsibilities|duties|day[- ]to[- ]day|a variety of|a range of|miscellaneous|assorted|as needed|general (?:support|duties|tasks))\b/i;
 
 const IRREGULAR_VERBS = new Set([
   "built",
@@ -227,6 +236,8 @@ export interface BulletAnalysis {
   outcome: boolean;
   /** False for fragments such as "Built dashboard" or a bare noun list. */
   complete: boolean;
+  /** A boast with no number, tool or result behind it ("expert in", "world-class"). */
+  claim: boolean;
 }
 
 const ENDS_WITH_CONNECTOR =
@@ -290,6 +301,8 @@ function classifyAction(
 
   const firstFive = tokens.slice(0, 5);
   if (isActionWord(tokens[0] ?? "") || firstFive.some(isActionWord)) {
+    // "Managed various tasks" opens with a verb but says nothing specific.
+    if (VAGUE_WORDS.test(lower) && !metric && !evidence) return "vague";
     return "strong";
   }
 
@@ -304,9 +317,16 @@ function strengthFor(
   metric: boolean,
   evidence: boolean,
   outcome: boolean,
+  techHeavy = false,
+  claim = false,
 ): number {
   const concrete =
     tokens.length >= 6 || metric || (evidence && tokens.length >= 4);
+
+  // A bullet that is mostly tool names says what was used, not what was done.
+  if (techHeavy && !metric && !outcome) return Math.min(1.5, action === "strong" ? 1.5 : 1);
+  // A boast with no number or result behind it earns little.
+  if (claim && !metric && !outcome) return 1;
 
   if (action === "strong") {
     // Full credit needs a result (a metric or an outcome word). Technical
@@ -334,8 +354,20 @@ export function analyzeBullet(text: string): BulletAnalysis {
     metric,
     evidence,
   );
-  const outcome = OUTCOME.test(lower);
-  const rawStrength = strengthFor(action, tokens, metric, evidence, outcome);
+  const outcome = OUTCOME.test(lower) || RESULT_CLAUSE.test(lower);
+  const claim = UNSUPPORTED_CLAIM.test(lower);
+  const evidenceTerms = lower.match(new RegExp(EVIDENCE_TERMS.source, "gi")) ?? [];
+  const techHeavy =
+    evidenceTerms.length >= 4 && evidenceTerms.length / Math.max(tokens.length, 1) > 0.4;
+  const rawStrength = strengthFor(
+    action,
+    tokens,
+    metric,
+    evidence,
+    outcome,
+    techHeavy,
+    claim,
+  );
 
   return {
     text: clean,
@@ -347,6 +379,7 @@ export function analyzeBullet(text: string): BulletAnalysis {
     evidence,
     outcome,
     complete,
+    claim,
   };
 }
 
@@ -356,13 +389,70 @@ export function analyzeBullets(data: ResumeData): BulletAnalysis[] {
 
 /* ------------------------------- dates ----------------------------------- */
 
-function monthIndex(value: string): number | null {
-  const match = value.trim().match(/^(\d{4})(?:-(\d{1,2}))?/);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = match[2] ? Number(match[2]) : 1;
-  if (!Number.isInteger(year) || month < 1 || month > 12) return null;
-  return year * 12 + month - 1;
+const MONTH_NAMES = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+];
+
+const PRESENT_WORDS = /^(?:present|current|now|ongoing|today|to date)$/i;
+const EARLIEST_YEAR = 1950;
+
+type ReadDate =
+  | { state: "empty" }
+  | { state: "invalid" }
+  | { state: "ok"; index: number; precise: boolean };
+
+/**
+ * Reads "2022-03", "03/2022", "Mar 2022", "March 2022" and a bare "2022".
+ * Anything else is "invalid", which is different from "empty": a date the
+ * reader could not understand is not the same as a date that was never given.
+ */
+export function readDate(value: string, now: Date): ReadDate {
+  const text = value.trim();
+  if (!text) return { state: "empty" };
+  if (PRESENT_WORDS.test(text)) {
+    return { state: "ok", index: nowIndex(now), precise: true };
+  }
+
+  let year: number | null = null;
+  let month: number | null = null;
+  let match = text.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (match) {
+    year = Number(match[1]);
+    month = Number(match[2]);
+  } else if ((match = text.match(/^(\d{1,2})[/.-](\d{4})$/))) {
+    month = Number(match[1]);
+    year = Number(match[2]);
+  } else if ((match = text.match(/^([A-Za-z]{3,9})\.?,?\s+(\d{4})$/))) {
+    const found = MONTH_NAMES.indexOf(match[1].slice(0, 3).toLowerCase());
+    if (found < 0) return { state: "invalid" };
+    month = found + 1;
+    year = Number(match[2]);
+  } else if ((match = text.match(/^(\d{4})$/))) {
+    year = Number(match[1]);
+  } else {
+    return { state: "invalid" };
+  }
+
+  if (year === null || year < EARLIEST_YEAR || year > 2200) {
+    return { state: "invalid" };
+  }
+  if (month !== null && (month < 1 || month > 12)) return { state: "invalid" };
+  return {
+    state: "ok",
+    index: year * 12 + (month ?? 1) - 1,
+    precise: month !== null,
+  };
 }
 
 function nowIndex(now: Date): number {
@@ -371,92 +461,153 @@ function nowIndex(now: Date): number {
 
 interface Span {
   label: string;
-  start: number | null;
-  end: number | null;
+  company: string;
+  /** Part-time, freelance, contract… roles can legitimately overlap. */
+  concurrent: boolean;
+  start: ReadDate;
+  end: ReadDate;
 }
+
+const CONCURRENT_WORK =
+  /\b(?:part[- ]time|freelanc\w*|contract\w*|consult\w*|volunteer\w*|intern(?:ship)?|self[- ]employed|temporary|seasonal|casual|side project)\b/i;
+
+const normalizeName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function experienceSpans(data: ResumeData, now: Date): Span[] {
   return data.experience
     .filter((entry) => hasText(entry.company) || hasText(entry.role))
     .map((entry) => ({
       label: entry.company.trim() || entry.role.trim(),
-      start: monthIndex(entry.startDate),
-      end: entry.current ? nowIndex(now) : monthIndex(entry.endDate),
+      company: normalizeName(entry.company),
+      concurrent: CONCURRENT_WORK.test(`${entry.role} ${entry.company}`),
+      start: readDate(entry.startDate, now),
+      end: entry.current
+        ? ({ state: "ok", index: nowIndex(now), precise: true } as const)
+        : readDate(entry.endDate, now),
     }));
 }
 
-/** Total months of experience, with overlapping roles counted once. */
-export function experienceYears(data: ResumeData, now = new Date()): number {
-  const spans = experienceSpans(data, now)
-    .filter(
-      (span): span is Span & { start: number; end: number } =>
-        span.start !== null && span.end !== null && span.end >= span.start,
-    )
-    .sort((a, b) => a.start - b.start);
+interface Range extends Span {
+  from: number;
+  to: number;
+}
 
+function validRanges(spans: Span[]): Range[] {
+  return spans
+    .filter(
+      (span): span is Span & {
+        start: { state: "ok"; index: number; precise: boolean };
+        end: { state: "ok"; index: number; precise: boolean };
+      } =>
+        span.start.state === "ok" &&
+        span.end.state === "ok" &&
+        span.end.index >= span.start.index,
+    )
+    .map((span) => ({ ...span, from: span.start.index, to: span.end.index }))
+    .sort((a, b) => a.from - b.from);
+}
+
+/** Total years of experience, with overlapping roles counted once. */
+export function experienceYears(data: ResumeData, now = new Date()): number {
   let months = 0;
   let cursor = -Infinity;
-  for (const span of spans) {
-    const from = Math.max(span.start, cursor);
-    if (span.end + 1 > from) months += span.end + 1 - from;
-    cursor = Math.max(cursor, span.end + 1);
+  for (const range of validRanges(experienceSpans(data, now))) {
+    const from = Math.max(range.from, cursor);
+    if (range.to + 1 > from) months += range.to + 1 - from;
+    cursor = Math.max(cursor, range.to + 1);
   }
   return months / 12;
 }
 
-function dateCheck(data: ResumeData, now: Date): AtsCheck {
+const MAX_OVERLAP_NOTES = 2;
+// Two jobs sharing a month or two is a normal handover, not an error.
+const TOLERATED_OVERLAP_MONTHS = 3;
+const GAP_MONTHS = 6;
+
+/**
+ * Null when no role has any date to assess, so the check does not appear at
+ * all rather than reporting "nothing to check".
+ */
+function dateCheck(data: ResumeData, now: Date): AtsCheck | null {
   const spans = experienceSpans(data, now);
-  if (spans.length === 0) {
-    return {
-      id: "dates",
-      label: "Dates and career timeline",
-      status: "info",
-      detail:
-        "No dated roles to assess yet. Add start and end dates when you add experience.",
-      weight: 5,
-      category: "structure",
-    };
-  }
+  const anyDate = spans.some(
+    (span) => span.start.state !== "empty" || span.end.state !== "empty",
+  );
+  if (spans.length === 0 || !anyDate) return null;
 
   const failures: string[] = [];
   const warnings: string[] = [];
   const current = nowIndex(now);
 
   for (const span of spans) {
-    if (span.start === null) {
+    if (span.start.state === "empty") {
       warnings.push(`${span.label}: add a start date.`);
-    } else if (span.start > current + 1) {
+    } else if (span.start.state === "invalid") {
+      warnings.push(
+        `${span.label}: the start date could not be read. Use a month and year, such as Mar 2022.`,
+      );
+    } else if (span.start.index > current + 1) {
       warnings.push(`${span.label}: the start date is in the future.`);
     }
-    if (span.start !== null && span.end === null) {
+
+    if (span.start.state !== "empty" && span.end.state === "empty") {
       warnings.push(
         `${span.label}: add an end date or mark the role as current.`,
       );
+    } else if (span.end.state === "invalid") {
+      warnings.push(
+        `${span.label}: the end date could not be read. Use a month and year, or mark the role as current.`,
+      );
+    } else if (span.end.state === "ok" && span.end.index > current + 1) {
+      warnings.push(
+        `${span.label}: the end date is in the future. Mark the role as current if it is ongoing.`,
+      );
     }
-    if (span.start !== null && span.end !== null && span.end < span.start) {
+
+    if (
+      span.start.state === "ok" &&
+      span.end.state === "ok" &&
+      span.end.index < span.start.index
+    ) {
       failures.push(`${span.label}: the end date is before the start date.`);
     }
   }
 
-  const dated = spans
-    .filter(
-      (span): span is Span & { start: number; end: number } =>
-        span.start !== null && span.end !== null && span.end >= span.start,
-    )
-    .sort((a, b) => a.start - b.start);
+  const ranges = validRanges(spans);
 
-  // Track the furthest end seen so overlapping roles do not create false gaps.
-  let maxEnd = -Infinity;
-  for (const span of dated) {
-    if (maxEnd >= 0) {
-      const gap = span.start - maxEnd - 1;
-      if (gap > 6) {
-        warnings.push(
-          `${gap}-month gap before ${span.label}. Recruiters notice this, so mention what you did (study, freelance, caregiving).`,
+  // Overlaps: only between different employers, and only when neither role is
+  // the kind that is normally held alongside another job.
+  const overlaps: string[] = [];
+  for (let i = 0; i < ranges.length; i += 1) {
+    for (let j = i + 1; j < ranges.length; j += 1) {
+      const first = ranges[i];
+      const second = ranges[j];
+      if (second.from > first.to) continue;
+      if (first.company && first.company === second.company) continue;
+      if (first.concurrent || second.concurrent) continue;
+      const months = Math.min(first.to, second.to) - second.from + 1;
+      if (months > TOLERATED_OVERLAP_MONTHS) {
+        overlaps.push(
+          `${first.label} and ${second.label} overlap by ${months} months. If you held both jobs, say so (for example “part-time”); otherwise correct the dates.`,
         );
       }
     }
-    maxEnd = Math.max(maxEnd, span.end);
+  }
+  warnings.push(...overlaps.slice(0, MAX_OVERLAP_NOTES));
+
+  // Track the furthest end seen so overlapping roles do not create false gaps.
+  let maxEnd = -Infinity;
+  for (const range of ranges) {
+    if (maxEnd >= 0) {
+      const gap = range.from - maxEnd - 1;
+      if (gap > GAP_MONTHS) {
+        warnings.push(
+          `${gap}-month gap before ${range.label}. Recruiters notice this, so mention what you did (study, freelance, caregiving).`,
+        );
+      }
+    }
+    maxEnd = Math.max(maxEnd, range.to);
   }
 
   const status: AtsStatus = failures.length
@@ -474,8 +625,8 @@ function dateCheck(data: ResumeData, now: Date): AtsCheck {
         ? "Dates are complete and consistent, with no unexplained gaps."
         : status === "fail"
           ? "One or more roles have impossible dates. Fix the order before applying."
-          : "Some dates are missing or the timeline has a gap. Complete them or explain the gap.",
-    weight: 5,
+          : "Some dates are missing or unclear, roles overlap, or the timeline has a gap. Complete them or explain the gap.",
+    weight: 0,
     category: "structure",
     examples: [...failures, ...warnings].slice(0, MAX_EXAMPLES + 1),
   };
@@ -497,7 +648,7 @@ function outcomesCheck(
         roleCount > 0
           ? "Your roles have no achievement bullets. Add what you built, changed, or improved under each role."
           : "There are no achievement bullets. Add contributions under your roles or projects so outcomes can be assessed.",
-      weight: 8,
+      weight: 0,
       category: "experience",
       examples: emptyRoles.slice(0, MAX_EXAMPLES),
     };
@@ -539,7 +690,7 @@ function outcomesCheck(
     label: "Specific contributions and outcomes",
     status,
     detail,
-    weight: 8,
+    weight: 0,
     category: "experience",
     examples:
       status === "pass"
@@ -565,7 +716,7 @@ function actionCheck(
         roleCount > 0
           ? "Your roles have no bullets, so there is no action or ownership to assess. Add achievement statements."
           : "There are no bullets to assess for action and ownership.",
-      weight: 3,
+      weight: 0,
       category: "experience",
       examples: emptyRoles.slice(0, MAX_EXAMPLES),
     };
@@ -603,24 +754,14 @@ function actionCheck(
         : baseStatus === "pass"
           ? `${strong} of ${total} bullets read as strong action statements.`
           : `${strong} strong action statements, ${passive.length} passive descriptions, ${responsibility.length} responsibilities without outcomes, and ${vague.length} vague bullets. Lead with what you did, or use a clear subject-plus-action sentence.`,
-    weight: 3,
+    weight: 0,
     category: "experience",
     examples: status === "pass" ? undefined : examples,
   };
 }
 
-function metricsCheck(analyses: BulletAnalysis[]): AtsCheck {
-  if (analyses.length === 0) {
-    return {
-      id: "metrics",
-      label: "Credible metrics",
-      status: "info",
-      detail:
-        "Metrics are optional. Add bullets first; numbers can come later.",
-      weight: 2,
-      category: "experience",
-    };
-  }
+function metricsCheck(analyses: BulletAnalysis[]): AtsCheck | null {
+  if (analyses.length === 0) return null;
 
   const withMetrics = analyses.filter((item) => item.metric).length;
   const without = analyses.filter((item) => !item.metric);
@@ -637,52 +778,19 @@ function metricsCheck(analyses: BulletAnalysis[]): AtsCheck {
         : withMetrics === 1
           ? `Only 1 of ${analyses.length} bullets has a measurable result. Aim for at least two or three real numbers (percentages, time saved, users, requests). Counts like “5 apps” or “team of 10” describe scope, not impact.`
           : `None of your ${analyses.length} bullets has a measurable result. Add real numbers where you have them: load time, bugs fixed, users, requests, time saved. Counts like “5 apps” or “team of 10” describe scope, not impact. Do not invent figures.`,
-    weight: 5,
+    weight: 0,
     category: "experience",
     examples: withMetrics >= needed ? undefined : without.slice(0, MAX_EXAMPLES).map((item) => trim(item.text)),
   };
 }
 
 function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
-  if (analyses.length === 0) {
-    return [
-      {
-        id: "weak-phrases",
-        label: "Specific, confident wording",
-        status: "info",
-        detail: "Add bullets before wording can be assessed.",
-        weight: 3,
-        category: "content",
-      },
-      {
-        id: "bullet-length",
-        label: "Bullet length",
-        status: "info",
-        detail: "Add bullets before length can be assessed.",
-        weight: 2,
-        category: "content",
-      },
-      {
-        id: "sentence-completeness",
-        label: "Complete, readable statements",
-        status: "info",
-        detail: "Add bullets before sentence completeness can be assessed.",
-        weight: 5,
-        category: "content",
-      },
-      {
-        id: "verb-variety",
-        label: "Varied opening words",
-        status: "info",
-        detail: "Add bullets before variety can be assessed.",
-        weight: 1,
-        category: "content",
-      },
-    ];
-  }
+  if (analyses.length === 0) return [];
 
   const bullets = analyses.map((item) => item.text);
-  const weak = analyses.filter((item) => WEAK_PHRASES.test(item.text));
+  const weak = analyses.filter(
+    (item) => WEAK_PHRASES.test(item.text) || item.claim,
+  );
   const weakRatio = weak.length / analyses.length;
 
   const wordCount = (line: string) => wordsOf(line).length;
@@ -695,7 +803,10 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
     if (word) counts.set(word, (counts.get(word) ?? 0) + 1);
   }
   const repeated = [...counts.entries()]
-    .filter(([, count]) => count >= 3)
+    .filter(
+      ([, count]) =>
+        count >= 3 && (count >= 4 || count / analyses.length >= 0.4),
+    )
     .sort((a, b) => b[1] - a[1]);
 
   const incomplete = analyses.filter((item) => !item.complete);
@@ -709,8 +820,8 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
       detail:
         weak.length === 0
           ? "Bullets avoid vague phrases like “responsible for” and “worked on”."
-          : `${weak.length} of ${analyses.length} bullets use vague phrases such as “responsible for”, “worked on” or “helped”. State what you did and what changed instead.`,
-      weight: 3,
+          : `${weak.length} of ${analyses.length} bullets use vague phrases such as “responsible for”, “worked on” or “helped”, or boast without evidence. State what you did and what changed instead.`,
+      weight: 0,
       category: "content",
       examples: weak.slice(0, MAX_EXAMPLES).map((item) => trim(item.text)),
     },
@@ -722,7 +833,7 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
         tooShort.length + tooLong.length === 0
           ? "Bullets are a readable length (about one or two lines)."
           : `${tooShort.length} bullets are very short (under 6 words) and ${tooLong.length} are long (over 35 words). Aim for one or two lines each.`,
-      weight: 2,
+      weight: 0,
       category: "content",
       examples: [...tooShort, ...tooLong]
         .slice(0, MAX_EXAMPLES)
@@ -740,8 +851,8 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
       detail:
         incomplete.length === 0
           ? "Bullets read as complete contribution statements rather than fragments."
-          : `${incomplete.length} of ${analyses.length} bullets look like fragments: they are very short, end on a connector, or are only a noun list. Rewrite them as complete statements, for example “Built a payments dashboard that reduced manual reconciliation by 30%.”`,
-      weight: 4,
+          : `${incomplete.length} of ${analyses.length} bullets look like fragments: they are very short, end on a connector, or are only a noun list. Rewrite them as complete statements, for example “Built a payments dashboard that cut manual reconciliation work.” Add a number only if you know the real one.`,
+      weight: 0,
       category: "content",
       examples: incomplete
         .slice(0, MAX_EXAMPLES)
@@ -755,7 +866,7 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
         repeated.length === 0
           ? "Bullets open with a good mix of words."
           : "Several bullets open with the same word, which reads as repetitive.",
-      weight: 1,
+      weight: 0,
       category: "content",
       examples: repeated
         .slice(0, MAX_EXAMPLES)
@@ -764,20 +875,11 @@ function bulletQualityChecks(analyses: BulletAnalysis[]): AtsCheck[] {
   ];
 }
 
-function roleBulletCheck(data: ResumeData): AtsCheck {
+function roleBulletCheck(data: ResumeData): AtsCheck | null {
   const roles = data.experience.filter(
     (entry) => hasText(entry.company) || hasText(entry.role),
   );
-  if (roles.length === 0) {
-    return {
-      id: "role-bullets",
-      label: "Achievements under each role",
-      status: "info",
-      detail: "No work roles to assess yet.",
-      weight: 2,
-      category: "experience",
-    };
-  }
+  if (roles.length === 0) return null;
 
   const empty = roles.filter(
     (entry) => countBulletLines(entry.description) === 0,
@@ -819,7 +921,7 @@ function roleBulletCheck(data: ResumeData): AtsCheck {
         : empty.length > 0
           ? `${empty.length} role${empty.length === 1 ? "" : "s"} have no achievement bullets. Add at least two or three contributions under each role.`
           : "Some roles have too many or too few achievements.",
-    weight: 3,
+    weight: 0,
     category: "experience",
     examples: examples.slice(0, MAX_EXAMPLES),
   };
@@ -834,12 +936,12 @@ function clicheCheck(data: ResumeData): AtsCheck {
   return {
     id: "cliches",
     label: "No empty buzzwords",
-    status: unique.length === 0 ? "pass" : unique.length >= 3 ? "fail" : "warn",
+    status: unique.length === 0 ? "pass" : "warn",
     detail:
       unique.length === 0
         ? "No overused buzzwords. Claims are backed by specifics."
         : "Buzzwords like these say nothing a recruiter can verify. Replace them with a result, a tool, or a fact.",
-    weight: 1,
+    weight: 0,
     category: "content",
     examples: unique.slice(0, MAX_EXAMPLES).map((word) => `“${word}”`),
   };
@@ -861,7 +963,7 @@ function placeholderCheck(data: ResumeData): AtsCheck {
       unique.length === 0
         ? "No bracketed instructions, TODOs, or sample text remain."
         : `${unique.length} placeholder${unique.length === 1 ? "" : "s"} remain in the resume. Replace bracketed prompts and TODO text with real content before sending it.`,
-    weight: 4,
+    weight: 0,
     category: "content",
     examples: unique.slice(0, MAX_EXAMPLES),
   };
@@ -886,7 +988,6 @@ export function skillEvidence(data: ResumeData): {
 
   const corpus = normalizeTerm(
     [
-      data.summary,
       ...data.experience.flatMap((entry) => [entry.role, entry.description]),
       ...data.projects.flatMap((entry) => [entry.title, entry.description]),
       ...data.certifications.flatMap((entry) => [entry.name, entry.issuer]),
@@ -915,19 +1016,9 @@ export function skillEvidence(data: ResumeData): {
   };
 }
 
-function skillsEvidenceCheck(data: ResumeData): AtsCheck {
+function skillsEvidenceCheck(data: ResumeData): AtsCheck | null {
   const { skills, supported, unsupported } = skillEvidence(data);
-  if (skills.length === 0) {
-    return {
-      id: "skills-evidence",
-      label: "Skills backed by experience and projects",
-      status: "info",
-      detail:
-        "Add skills to assess whether they are demonstrated in your work.",
-      weight: 11,
-      category: "skills",
-    };
-  }
+  if (skills.length === 0) return null;
 
   const ratio = supported.length / skills.length;
 
@@ -942,13 +1033,17 @@ function skillsEvidenceCheck(data: ResumeData): AtsCheck {
       status === "pass"
         ? `${supported.length} of ${skills.length} listed skills appear in your experience or projects.`
         : `${supported.length} of ${skills.length} listed skills appear in your experience or projects. Show where you used the others, or remove skills you cannot evidence.`,
-    weight: 11,
+    weight: 0,
     category: "skills",
     examples: status === "pass" ? undefined : unsupported.slice(0, 6),
   };
 }
 
-/** All content-quality checks that apply to this resume. */
+/**
+ * All content-quality checks that apply to this resume. A check that has nothing
+ * to assess returns null and is left out, and anything that does not satisfy
+ * the shared `AtsCheck` contract is dropped rather than reaching the score.
+ */
 export function qualityChecks(data: ResumeData, now = new Date()): AtsCheck[] {
   const analyses = analyzeBullets(data);
   const roles = data.experience.filter(
@@ -958,7 +1053,7 @@ export function qualityChecks(data: ResumeData, now = new Date()): AtsCheck[] {
     .filter((entry) => countBulletLines(entry.description) === 0)
     .map((entry) => entry.company.trim() || entry.role.trim());
 
-  return [
+  const candidates: Array<AtsCheck | null> = [
     outcomesCheck(analyses, roles.length, emptyRoles),
     actionCheck(analyses, roles.length, emptyRoles),
     metricsCheck(analyses),
@@ -969,4 +1064,10 @@ export function qualityChecks(data: ResumeData, now = new Date()): AtsCheck[] {
     placeholderCheck(data),
     skillsEvidenceCheck(data),
   ];
+
+  return withWeights(
+    candidates.filter(
+      (check): check is AtsCheck => check !== null && isValidCheck(check),
+    ),
+  );
 }

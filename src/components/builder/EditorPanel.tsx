@@ -26,6 +26,8 @@ interface EditorPanelProps {
   onNewResume: () => void;
   onDeleteResume: () => void;
   onImport: () => void;
+  /** Hides the saved-resume list: a visitor has none. */
+  guest?: boolean;
 }
 
 export function EditorPanel({
@@ -35,6 +37,7 @@ export function EditorPanel({
   onNewResume,
   onDeleteResume,
   onImport,
+  guest = false,
 }: EditorPanelProps) {
   const validity = checkResumeValidity(editor.data);
 
@@ -43,14 +46,16 @@ export function EditorPanel({
       <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         {editor.isLoading && <LinearProgress sx={{ borderRadius: 1 }} />}
 
-        <ResumeSwitcher
-          items={editor.items}
-          currentId={editor.resumeId}
-          isLoading={editor.isLoading}
-          onSelect={onSelectResume}
-          onNew={onNewResume}
-          onDelete={onDeleteResume}
-        />
+        {!guest && (
+          <ResumeSwitcher
+            items={editor.items}
+            currentId={editor.resumeId}
+            isLoading={editor.isLoading}
+            onSelect={onSelectResume}
+            onNew={onNewResume}
+            onDelete={onDeleteResume}
+          />
+        )}
 
         <TextField
           label="Resume title"
@@ -58,7 +63,7 @@ export function EditorPanel({
           onChange={(event) => editor.setTitle(event.target.value)}
           disabled={editor.isLoading}
           fullWidth
-          helperText="Used in your saved list and as the PDF file name."
+          helperText={guest ? "Used as the PDF file name." : "Used in your saved list and as the PDF file name."}
           slotProps={{ htmlInput: { maxLength: 100 } }}
         />
 

@@ -6,7 +6,7 @@ import FactCheckIcon from "@mui/icons-material/FactCheck";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import QuestionAnswerIcon from "@mui/icons-material/QuestionAnswer";
 import TravelExploreIcon from "@mui/icons-material/TravelExplore";
-import { analyzeResume } from "@/lib/ats";
+import { analyzeResume } from "@/lib/ats-analyze";
 import { auth } from "@/lib/auth";
 import {
   APPLICATION_STATUS_LABELS,

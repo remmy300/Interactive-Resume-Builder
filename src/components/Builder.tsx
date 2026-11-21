@@ -1,36 +1,51 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { signOut } from "next-auth/react";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Snackbar from "@mui/material/Snackbar";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
-import AtsDialog from "@/components/builder/AtsDialog";
 import ConfirmDialog from "@/components/builder/ConfirmDialog";
 import EditorPanel from "@/components/builder/EditorPanel";
-import ImportCvDialog from "@/components/builder/ImportCvDialog";
 import ImportReviewDialog, {
   hasReviewItems,
   type ImportReview,
 } from "@/components/builder/ImportReviewDialog";
-import PreviewDialog from "@/components/builder/PreviewDialog";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import TopBar from "@/components/builder/TopBar";
 import { PrintPages } from "@/components/preview/PrintPages";
 import { useResumeEditor } from "@/hooks/useResumeEditor";
-import { analyzeResume } from "@/lib/ats";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
+import { analyzeResume } from "@/lib/ats-analyze";
 import { openEditorSection, type EditorSectionId } from "@/lib/editor-sections";
 import { checkResumeValidity } from "@/lib/resume-validity";
 import { safeFileName } from "@/utils/Form";
 
+// Dialogs are opened rarely, so their code (the quality check alone is large)
+// is fetched the first time one is opened instead of with the editor.
+const AtsDialog = dynamic(() => import("@/components/builder/AtsDialog"));
+const PreviewDialog = dynamic(() => import("@/components/builder/PreviewDialog"));
+const ImportCvDialog = dynamic(() => import("@/components/builder/ImportCvDialog"));
+
+/** True from the first time `value` is true onwards, so a closing dialog can finish its exit animation. */
+function useEverTrue(value: boolean): boolean {
+  const [seen, setSeen] = useState(value);
+  if (value && !seen) setSeen(true);
+  return seen || value;
+}
+
 interface BuilderProps {
   initialResumeId?: string | null;
+  /** The resume list and the opened resume, loaded on the server. */
+  initial?: PreloadedLibrary;
+  /** Null for a visitor who has not signed in. */
   user: {
     email: string;
     name?: string | null;
-  };
+  } | null;
 }
 
 type PendingNavigation =
@@ -43,8 +58,13 @@ interface Notice {
   severity: "success" | "info" | "warning";
 }
 
-export default function Builder({ user, initialResumeId }: BuilderProps) {
-  const editor = useResumeEditor(initialResumeId);
+export default function Builder({
+  user,
+  initialResumeId,
+  initial,
+}: BuilderProps) {
+  const guest = user === null;
+  const editor = useResumeEditor(initialResumeId, { guest, initial });
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [atsOpen, setAtsOpen] = useState(false);
@@ -62,7 +82,15 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
   const [importReview, setImportReview] = useState<ImportReview | null>(null);
 
   const { save, isDirty, resumeId, items, data, title, currentItem } = editor;
-  const atsScore = useMemo(() => analyzeResume(data).score, [data]);
+  // The score badge, the preview and the print copy may trail a keystroke
+  // behind: typing is never held up by laying them out again.
+  const deferredData = useDeferredValue(data);
+  const atsScore = useMemo(
+    () => analyzeResume(deferredData).score,
+    [deferredData],
+  );
+  const previewMounted = useEverTrue(previewOpen);
+  const atsMounted = useEverTrue(atsOpen);
   const validity = useMemo(() => checkResumeValidity(data), [data]);
   const blockedReason = validity.valid
     ? ""
@@ -79,7 +107,14 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [save]);
 
+  // Saving, the PDF, the quality check and import need an account. The draft
+  // stays in this browser, so the visitor comes back to the same resume.
+  const requireSignIn = () => {
+    window.location.assign("/login?next=/dashboard/resume");
+  };
+
   const handlePrint = () => {
+    if (guest) return requireSignIn();
     const previousTitle = document.title;
     document.title = safeFileName(
       data.personal.name || title || "resume",
@@ -108,6 +143,7 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
   };
 
   const requestImport = () => {
+    if (guest) return requireSignIn();
     if (isDirty) {
       setPendingNavigation({ kind: "import" });
       return;
@@ -252,8 +288,10 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
 
       <main className="screen-only min-h-screen bg-slate-100">
         <TopBar
-          email={user.email}
-          name={user.name}
+          email={user?.email ?? ""}
+          name={user?.name}
+          guest={guest}
+          onSignIn={requireSignIn}
           isDirty={isDirty}
           isSaving={editor.isSaving}
           isLoading={editor.isLoading}
@@ -264,7 +302,7 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
           blockedReason={blockedReason}
           onSave={() => void editor.save()}
           onPreview={() => setPreviewOpen(true)}
-          onOpenAts={() => setAtsOpen(true)}
+          onOpenAts={() => (guest ? requireSignIn() : setAtsOpen(true))}
           onPrint={handlePrint}
           onExport={handleExport}
           onDeleteAccount={() => setAccountDialogOpen(true)}
@@ -299,10 +337,11 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
               });
             }}
             onImport={requestImport}
+            guest={guest}
           />
 
           <PreviewPanel
-            data={editor.data}
+            data={deferredData}
             className={mobileView === "edit" ? "hidden lg:block" : ""}
             currentItem={currentItem}
             onToggleShare={(enabled) => void handleToggleShare(enabled)}
@@ -311,19 +350,23 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
           />
         </div>
 
-        <PreviewDialog
-          open={previewOpen}
-          data={editor.data}
-          onClose={() => setPreviewOpen(false)}
-          onPrint={handlePrint}
-        />
+        {previewMounted && (
+          <PreviewDialog
+            open={previewOpen}
+            data={editor.data}
+            onClose={() => setPreviewOpen(false)}
+            onPrint={handlePrint}
+          />
+        )}
 
-        <AtsDialog
-          open={atsOpen}
-          data={editor.data}
-          dispatch={editor.dispatch}
-          onClose={() => setAtsOpen(false)}
-        />
+        {atsMounted && (
+          <AtsDialog
+            open={atsOpen}
+            data={editor.data}
+            dispatch={editor.dispatch}
+            onClose={() => setAtsOpen(false)}
+          />
+        )}
 
         {importOpen && (
           <ImportCvDialog
@@ -457,7 +500,7 @@ export default function Builder({ user, initialResumeId }: BuilderProps) {
       </main>
 
       {/* Printed instead of the app: real text, clickable links, ATS readable. */}
-      <PrintPages data={editor.data} />
+      <PrintPages data={deferredData} />
     </>
   );
 }

@@ -15,8 +15,10 @@ import {
   type BulletChange,
 } from "@/lib/career";
 import {
+  assessJobFit,
   extractKeywords,
   matchKeywords,
+  type KeywordImportance,
 } from "@/lib/ats";
 import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import type { ResumeData } from "@/lib/resume-schema";
@@ -24,14 +26,29 @@ import ConfirmDialog from "@/components/builder/ConfirmDialog";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 import { useResumeLibrary, type LibraryRecord } from "@/hooks/useResumeLibrary";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
+
+const IMPORTANCE_LABEL: Record<KeywordImportance, string> = {
+  required: "Required",
+  core: "Core duty",
+  preferred: "Nice to have",
+  general: "Mentioned",
+};
+
+const IMPORTANCE_STYLE: Record<KeywordImportance, string> = {
+  required: "bg-red-50 text-red-700",
+  core: "bg-amber-50 text-amber-700",
+  preferred: "bg-slate-100 text-slate-600",
+  general: "bg-slate-100 text-slate-600",
+};
 
 interface Notice {
   severity: "success" | "warning" | "error" | "info";
   message: string;
 }
 
-export function JobMatchClient() {
-  const library = useResumeLibrary();
+export function JobMatchClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+  const library = useResumeLibrary(initial);
   const [jobDescription, setJobDescription] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
@@ -43,9 +60,21 @@ export function JobMatchClient() {
   const data = library.record?.data ?? null;
   const keywords = useMemo(() => extractKeywords(jobDescription), [jobDescription]);
   const match = useMemo(
-    () => (data ? matchKeywords(data, keywords) : { matched: [], missing: [], score: 0 }),
+    () =>
+      data
+        ? matchKeywords(data, keywords)
+        : { matched: [], missing: [], listedOnly: [], score: 0, details: [] },
     [data, keywords],
   );
+  const fit = useMemo(
+    () => (data ? assessJobFit(data, jobDescription) : null),
+    [data, jobDescription],
+  );
+  const importanceByName = useMemo(
+    () => new Map(match.details.map((item) => [item.display, item.importance])),
+    [match.details],
+  );
+  const listedOnly = useMemo(() => new Set(match.listedOnly), [match.listedOnly]);
   const suggestions = useMemo(
     () => (data ? suggestBulletImprovements(data) : []),
     [data],
@@ -205,20 +234,34 @@ export function JobMatchClient() {
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Weighted requirement match
+                      Job compatibility
                     </p>
                     <p className="mt-1 text-4xl font-bold text-slate-900">
                       {match.score}
                       <span className="text-lg font-semibold text-slate-500">%</span>
                     </p>
                   </div>
-                  <p className="text-sm text-slate-600">
-                    {match.matched.length} of {keywords.length} requirements covered
-                  </p>
+                  <div className="text-right text-sm text-slate-600">
+                    {fit && (
+                      <p className="font-semibold text-slate-900">{fit.verdict}</p>
+                    )}
+                    <p>
+                      {match.matched.length} of {keywords.length} requirements covered
+                    </p>
+                    {fit && fit.requiredCoverage !== null && (
+                      <p>
+                        {Math.round(fit.requiredCoverage * 100)}% of the required
+                        skills
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Weighted by must-have wording, repetition, and how specific each
-                  requirement is. Benefits, company names, and ordinary prose are ignored.
+                  Weighted by must-have wording and how specific each requirement is.
+                  A skill used in a role or project counts in full; one that is only in
+                  your skills list counts for less. Names, companies, benefits and
+                  ordinary prose are ignored. This is separate from your resume quality
+                  score.
                 </p>
                 <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
                   <div
@@ -258,6 +301,13 @@ export function JobMatchClient() {
                               slotProps={{ input: { "aria-label": `Add ${skill}` } }}
                             />
                             <span className="text-sm text-slate-800">{skill}</span>
+                            {importanceByName.get(skill) && (
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${IMPORTANCE_STYLE[importanceByName.get(skill)!]}`}
+                              >
+                                {IMPORTANCE_LABEL[importanceByName.get(skill)!]}
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -287,12 +337,23 @@ export function JobMatchClient() {
                       {match.matched.map((skill) => (
                         <Chip
                           key={skill}
-                          label={skill}
+                          label={listedOnly.has(skill) ? `${skill} (listed only)` : skill}
                           size="small"
-                          sx={{ bgcolor: "#ecfdf5", color: "#065f46" }}
+                          sx={
+                            listedOnly.has(skill)
+                              ? { bgcolor: "#fffbeb", color: "#92400e" }
+                              : { bgcolor: "#ecfdf5", color: "#065f46" }
+                          }
                         />
                       ))}
                     </div>
+                  )}
+                  {fit && fit.advice.length > 0 && (
+                    <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-slate-600">
+                      {fit.advice.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
                   )}
                 </section>
               </div>

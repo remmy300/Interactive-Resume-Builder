@@ -12,9 +12,10 @@ import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 import { useResumeLibrary } from "@/hooks/useResumeLibrary";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
 
-export function ProfileClient() {
-  const library = useResumeLibrary();
+export function ProfileClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+  const library = useResumeLibrary(initial);
   const [notice, setNotice] = useState<{ severity: "success" | "warning" | "error"; message: string } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const profile = library.record?.data;

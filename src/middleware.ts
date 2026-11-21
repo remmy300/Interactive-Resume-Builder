@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/r", "/api/auth"];
-const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"];
+const PUBLIC_PREFIXES = ["/login", "/r", "/try", "/api/auth"];
+const SESSION_COOKIES = [
+  "authjs.session-token",
+  "__Secure-authjs.session-token",
+];
 
 /**
  * Edge-safe gate: checks for the presence of the session cookie only. The
@@ -11,6 +14,19 @@ const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  const hasSession = SESSION_COOKIES.some((name) =>
+    Boolean(request.cookies.get(name)?.value),
+  );
+
+  // The home page only ever redirects, so do it here instead of rendering a
+  // page on the server first. `auth()` still decides what a visitor may see.
+  if (pathname === "/") {
+    const target = request.nextUrl.clone();
+    target.pathname = hasSession ? "/dashboard" : "/try";
+    target.search = "";
+    return NextResponse.redirect(target);
+  }
+
   if (
     PUBLIC_PREFIXES.some(
       (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
@@ -19,9 +35,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = SESSION_COOKIES.some((name) =>
-    Boolean(request.cookies.get(name)?.value),
-  );
   if (hasSession) return NextResponse.next();
 
   const loginUrl = request.nextUrl.clone();

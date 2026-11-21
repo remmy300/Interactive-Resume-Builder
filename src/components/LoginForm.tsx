@@ -37,9 +37,6 @@ export default function LoginForm({ redirectTo = "/" }: LoginFormProps) {
         <section className="hidden flex-col justify-between gap-8 text-slate-900 p-8 bg-white md:flex">
           <div>
             <p className="text-lg font-bold">Resume Studio</p>
-            <h1 className="mt-6 text-3xl font-bold leading-tight">
-              Build a resume that gets past the robots.
-            </h1>
             <ul className="mt-6 space-y-3 text-sm text-slate-900">
               {highlights.map((item) => (
                 <li key={item} className="flex gap-2">

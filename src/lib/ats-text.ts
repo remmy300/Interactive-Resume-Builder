@@ -2,7 +2,6 @@ import type { ResumeData } from "./resume-schema";
 
 export const hasText = (value: string) => value.trim().length > 0;
 
-/** Splits comma/enter separated skill text into clean items. */
 export function skillItems(value: string): string[] {
   return value
     .split(/[,\n]/)
@@ -10,7 +9,6 @@ export function skillItems(value: string): string[] {
     .filter(Boolean);
 }
 
-/** Flattens the resume into plain text, the same text an ATS would read. */
 export function resumeText(data: ResumeData): string {
   const { personal, skills } = data;
   const parts: string[] = [
@@ -44,19 +42,19 @@ export function resumeText(data: ResumeData): string {
   for (const entry of data.certifications) {
     parts.push(entry.name, entry.issuer, entry.date, entry.link);
   }
-  parts.push(skills.languages, skills.technologies, skills.databases, skills.spoken);
+  parts.push(
+    skills.languages,
+    skills.technologies,
+    skills.databases,
+    skills.spoken,
+  );
 
   return parts.filter(hasText).join("\n");
 }
 
-/**
- * Project entries often include a "Tech stack: …" line. That is context, not an
- * achievement, so it should not count as a bullet or be judged like one.
- */
 const CONTEXT_LABEL =
   /^(?:tech(?:nology)? stack|technologies|stack|tools|built with)\s*:/i;
 
-/** Achievement bullets exactly as they appear in the document. */
 export function resumeBullets(data: ResumeData): string[] {
   return [...data.experience, ...data.projects]
     .flatMap((entry) => entry.description.split("\n"))

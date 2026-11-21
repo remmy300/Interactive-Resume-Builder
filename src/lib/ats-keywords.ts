@@ -6,8 +6,25 @@ import {
   looksTechnical,
   normalizeTerm,
 } from "./ats-skills";
-import { resumeText, skillItems } from "./ats-text";
+import { skillItems } from "./ats-text";
 import type { ResumeData, Skills } from "./resume-schema";
+
+/**
+ * How much the posting asks for a skill:
+ * - required: under requirements/qualifications or worded as a must-have.
+ * - core: part of the day-to-day duties.
+ * - preferred: nice to have, a bonus, or a plus.
+ * - general: mentioned without any signal either way.
+ */
+export type KeywordImportance = "required" | "core" | "preferred" | "general";
+
+/**
+ * - demonstrated: used in a role, project, certificate or degree.
+ * - listed: only named in the skills list, summary or title. Credited less,
+ *   because a list shows a claim, not use.
+ * - missing: not on the resume.
+ */
+export type KeywordEvidence = "demonstrated" | "listed" | "missing";
 
 export interface JobKeyword {
   /** Normalised lowercase term used for matching. */
@@ -15,6 +32,7 @@ export interface JobKeyword {
   /** Human readable label, preserving the canonical skill casing. */
   display: string;
   count: number;
+  importance: KeywordImportance;
   /**
    * Relative importance of this requirement. Must-have wording, repetition,
    * and multi-word specificity all raise the weight.
@@ -22,10 +40,21 @@ export interface JobKeyword {
   weight: number;
 }
 
+export interface KeywordDetail {
+  term: string;
+  display: string;
+  importance: KeywordImportance;
+  evidence: KeywordEvidence;
+}
+
 export interface KeywordMatch {
+  /** Every keyword found on the resume, demonstrated or only listed. */
   matched: string[];
   missing: string[];
+  /** Found, but only in the skills list, summary or title. */
+  listedOnly: string[];
   score: number;
+  details: KeywordDetail[];
 }
 
 interface Token {
@@ -39,22 +68,34 @@ interface FoundKeyword {
   display: string;
   count: number;
   weight: number;
+  /** The strongest signal seen, before any bonus for repetition or length. */
+  base: number;
 }
 
 const MAX_PHRASE_WORDS = 4;
 const DEFAULT_WEIGHT = 1.5;
 const REQUIREMENT_WEIGHT = 3;
 const RESPONSIBILITY_WEIGHT = 2;
-const NICE_WEIGHT = 1.5;
+const NICE_WEIGHT = 1;
+
+function importanceOf(base: number): KeywordImportance {
+  if (base >= REQUIREMENT_WEIGHT) return "required";
+  if (base >= RESPONSIBILITY_WEIGHT) return "core";
+  if (base <= NICE_WEIGHT) return "preferred";
+  return "general";
+}
+
+// "Go to market", "go live", "go above and beyond": the verb, not the language.
+const GO_VERB_AFTER =
+  /^\s+(?:to|live|ahead|above|beyond|through|over|out|back|forward|the)\b/i;
+
+function isVerbUse(text: string, token: Token): boolean {
+  return token.term === "go" && GO_VERB_AFTER.test(text.slice(token.end));
+}
 
 const ROLE_TITLE_WORDS =
   /\b(?:engineer|engineering|developer|development|manager|management|analyst|analysis|designer|architect|scientist|consultant|specialist|director|coordinator|administrator|assistant|associate|intern|internship|lead|principal|staff|officer|executive|technician|supervisor|representative|recruiter|head)\b/i;
 
-/**
- * Words that are too generic to identify a company on their own. They stay out
- * of the company-term set so a company called "Brightside Media" cannot make
- * the extractor ignore every line containing "media".
- */
 const COMPANY_GENERIC_WORDS = new Set([
   "corp",
   "corporation",
@@ -211,37 +252,95 @@ const REQUIREMENT_CUES =
 const RESPONSIBILITY_CUES =
   /\b(responsibilities|your responsibilities|what you(?:'|’)ll do|you will|day[- ]to[- ]day|duties|the role|about the role|in this role)\b/i;
 
-const NICE_CUES =
-  /\b(nice[- ]to[- ]have|preferred|bonus|plus|advantage)\b/i;
+const NICE_CUES = /\b(nice[- ]to[- ]have|preferred|bonus|plus|advantage)\b/i;
 
 const BENEFIT_START =
   /^(?:benefits?|perks?|compensation|what we offer|why join|about (?:us|the company)|our (?:mission|values|culture)|how to apply|equal opportunity|eoe)\b/i;
 
 const startsUppercase = (value: string) => /^[A-Z]/.test(value);
 
-/* -------------------------------------------------------------------------- */
-/*                       Postings written in another language                 */
-/* -------------------------------------------------------------------------- */
-
-// Common function words, enough to tell a German, French, Spanish, Portuguese or
-// Dutch posting from an English one. This is not translation: it only switches
-// the extractor to a stricter mode, because its English-only assumptions (word
-// lists, "capitalised means a name") produce fake skills in other languages.
 const ENGLISH_MARKERS = new Set([
-  "the", "and", "with", "for", "you", "our", "will", "are", "your", "we", "is",
-  "to", "of", "in", "have", "has", "that", "this", "experience", "team",
+  "the",
+  "and",
+  "with",
+  "for",
+  "you",
+  "our",
+  "will",
+  "are",
+  "your",
+  "we",
+  "is",
+  "to",
+  "of",
+  "in",
+  "have",
+  "has",
+  "that",
+  "this",
+  "experience",
+  "team",
 ]);
 const OTHER_LANGUAGE_MARKERS = new Set([
   // German
-  "und", "der", "die", "das", "mit", "für", "nicht", "eine", "einen", "dem",
-  "den", "auch", "oder", "werden", "wir", "du", "ihr", "ist", "sind", "bei",
-  "von", "auf", "zu", "dich", "dir", "uns", "sehr", "als",
+  "und",
+  "der",
+  "die",
+  "das",
+  "mit",
+  "für",
+  "nicht",
+  "eine",
+  "einen",
+  "dem",
+  "den",
+  "auch",
+  "oder",
+  "werden",
+  "wir",
+  "du",
+  "ihr",
+  "ist",
+  "sind",
+  "bei",
+  "von",
+  "auf",
+  "zu",
+  "dich",
+  "dir",
+  "uns",
+  "sehr",
+  "als",
   // French
-  "les", "des", "pour", "avec", "vous", "nous", "est", "une", "dans", "que", "qui",
+  "les",
+  "des",
+  "pour",
+  "avec",
+  "vous",
+  "nous",
+  "est",
+  "une",
+  "dans",
+  "que",
+  "qui",
   // Spanish / Portuguese
-  "los", "las", "con", "para", "una", "por", "del", "não", "você", "nós",
+  "los",
+  "las",
+  "con",
+  "para",
+  "una",
+  "por",
+  "del",
+  "não",
+  "você",
+  "nós",
   // Dutch
-  "het", "een", "voor", "met", "niet", "zijn",
+  "het",
+  "een",
+  "voor",
+  "met",
+  "niet",
+  "zijn",
 ]);
 
 export function looksNonEnglish(text: string): boolean {
@@ -260,8 +359,19 @@ export function looksNonEnglish(text: string): boolean {
 // exactly like Microsoft Teams. Only names that are never ordinary words are
 // trusted outside English.
 const NON_ENGLISH_SAFE_CASE_TERMS = new Set([
-  "react", "swift", "rust", "flask", "rails", "airflow", "databricks", "tableau",
-  "looker", "miro", "canva", "amplitude", "snowflake",
+  "react",
+  "swift",
+  "rust",
+  "flask",
+  "rails",
+  "airflow",
+  "databricks",
+  "tableau",
+  "looker",
+  "miro",
+  "canva",
+  "amplitude",
+  "snowflake",
 ]);
 
 /** Headings used by German postings, treated like their English counterparts. */
@@ -275,7 +385,10 @@ function headingWeight(text: string): number {
   if (BENEFIT_START.test(text) || GERMAN_BENEFITS.test(text.trim())) return 0;
   if (GERMAN_REQUIREMENTS.test(text.trim())) return REQUIREMENT_WEIGHT;
   if (GERMAN_RESPONSIBILITIES.test(text.trim())) return RESPONSIBILITY_WEIGHT;
-  if (/^(?:nice|preferred|bonus|plus|advantage)\b/i.test(text) && NICE_CUES.test(text)) {
+  if (
+    /^(?:nice|preferred|bonus|plus|advantage)\b/i.test(text) &&
+    NICE_CUES.test(text)
+  ) {
     return NICE_WEIGHT;
   }
   if (REQUIREMENT_CUES.test(text)) return REQUIREMENT_WEIGHT;
@@ -290,7 +403,10 @@ function cueWeight(text: string): number | null {
   // A benefits heading overrides everything else on that line.
   if (BENEFIT_START.test(text)) return 0;
   // "Preferred qualifications" is a nice-to-have heading, not a hard requirement.
-  if (/^(?:nice|preferred|bonus|plus|advantage)\b/i.test(text) && NICE_CUES.test(text)) {
+  if (
+    /^(?:nice|preferred|bonus|plus|advantage)\b/i.test(text) &&
+    NICE_CUES.test(text)
+  ) {
     return NICE_WEIGHT;
   }
   // Requirement wording wins over a benefit phrase later in the same sentence
@@ -420,7 +536,9 @@ function detectCompanyTerms(text: string): Set<string> {
     if (withSeparator) {
       add(withSeparator[1]);
     } else if (
-      /^[A-Z][A-Za-z0-9&.'’-]*(?:\s+[A-Z][A-Za-z0-9&.'’-]*){0,2}$/.test(firstLine)
+      /^[A-Z][A-Za-z0-9&.'’-]*(?:\s+[A-Z][A-Za-z0-9&.'’-]*){0,2}$/.test(
+        firstLine,
+      )
     ) {
       add(firstLine);
     }
@@ -465,7 +583,10 @@ function isKeywordWord(token: Token): boolean {
  * benefits/about-the-company prose are dropped, and wording such as "required"
  * or "must have" makes a term count for more than a passing mention.
  */
-export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[] {
+export function extractKeywords(
+  jobDescription: string,
+  limit = 24,
+): JobKeyword[] {
   const companyTerms = detectCompanyTerms(jobDescription);
   const nonEnglish = looksNonEnglish(jobDescription);
   // Ambiguous names (Teams, Go, Spring…) are only trusted when written in the
@@ -476,14 +597,20 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
       (nonEnglish && !NON_ENGLISH_SAFE_CASE_TERMS.has(term)));
   const found = new Map<string, FoundKeyword>();
 
-  const add = (term: string, display: string, weight: number) => {
+  const add = (
+    term: string,
+    display: string,
+    weight: number,
+    base = weight,
+  ) => {
     if (weight <= 0) return;
     const existing = found.get(term);
     if (existing) {
       existing.count += 1;
       existing.weight = Math.max(existing.weight, weight);
+      existing.base = Math.max(existing.base, base);
     } else {
-      found.set(term, { display, count: 1, weight });
+      found.set(term, { display, count: 1, weight, base });
     }
   };
 
@@ -552,11 +679,13 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
           if (size === 1 && ambiguousName(phrase, slice[0].raw)) {
             continue;
           }
+          if (size === 1 && isVerbUse(text, slice[0])) continue;
 
           add(
             definition.term,
             definition.display,
             weight + (size > 1 ? 1 : 0),
+            weight,
           );
           for (let offset = 0; offset < size; offset += 1) {
             consumed.add(index + offset);
@@ -578,6 +707,7 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
           if (ambiguousName(token.term, token.raw)) {
             continue;
           }
+          if (isVerbUse(text, token)) continue;
           add(definition.term, definition.display, weight);
           continue;
         }
@@ -600,6 +730,7 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
       term,
       display: value.display,
       count: value.count,
+      importance: importanceOf(value.base),
       // Repetition matters, but a term repeated ten times should not drown out
       // the rest of the posting.
       weight: value.weight + Math.min(value.count - 1, 2) * 0.5,
@@ -614,7 +745,8 @@ export function extractKeywords(jobDescription: string, limit = 24): JobKeyword[
 
   // The general-word fallback relies on English word lists, so it would return
   // ordinary words ("bereits", "Kanzleien") for a posting in another language.
-  if (ranked.length >= MIN_SKILL_KEYWORDS || nonEnglish) return ranked.slice(0, limit);
+  if (ranked.length >= MIN_SKILL_KEYWORDS || nonEnglish)
+    return ranked.slice(0, limit);
 
   const general = collectGeneralKeywords(
     jobDescription,
@@ -639,33 +771,179 @@ const MAX_GENERAL_KEYWORDS = 12;
 const RELAX_BELOW = 12;
 
 const GENERAL_NOISE = new Set([
-  "ability", "able", "applicants", "applicant", "applications", "apply", "assist",
-  "available", "based", "become", "being", "candidate", "candidates", "come",
-  "company", "comfortable", "daily", "demonstrated", "desired", "diploma", "ensure",
-  "environment", "equivalent", "excellent", "experience", "experienced", "familiar",
-  "following", "fresh", "full", "good", "great", "have", "having", "help", "helping",
-  "high", "hired", "hiring", "include", "includes", "including", "interested",
-  "join", "keen", "knowledge", "level", "like", "location", "looking", "maintain",
-  "make", "making", "manage", "many", "minimum", "month", "months", "must", "needed",
-  "needs", "opportunity", "other", "others", "part", "perform", "person", "plus",
-  "position", "possess", "possible", "preferably", "preferred", "previous",
-  "prior", "provide", "proven", "qualifications", "qualified", "range", "related",
-  "relevant", "reliable", "required", "requirement", "requirements", "responsible",
-  "responsibilities", "responsibility", "role", "salary", "seeking", "similar",
-  "skill", "skills", "solid", "strong", "successful", "support", "supporting",
-  "take", "team", "their", "them", "these", "those", "through", "time", "types",
-  "about", "above", "after", "again", "also", "been", "both", "each", "from", "into",
-  "more", "most", "over", "same", "some", "such", "than", "that", "then", "they",
-  "this", "very", "what", "when", "where", "which", "while", "will", "with",
-  "answer", "balance", "class", "close", "greet", "handle", "hold", "operate",
-  "prepare", "valid", "wanted", "welcome",
-  "under", "understanding", "using", "vacancy", "various", "well", "willing",
-  "within", "without", "work", "working", "works", "would", "year", "years", "your",
+  "ability",
+  "able",
+  "applicants",
+  "applicant",
+  "applications",
+  "apply",
+  "assist",
+  "available",
+  "based",
+  "become",
+  "being",
+  "candidate",
+  "candidates",
+  "come",
+  "company",
+  "comfortable",
+  "daily",
+  "demonstrated",
+  "desired",
+  "diploma",
+  "ensure",
+  "environment",
+  "equivalent",
+  "excellent",
+  "experience",
+  "experienced",
+  "familiar",
+  "following",
+  "fresh",
+  "full",
+  "good",
+  "great",
+  "have",
+  "having",
+  "help",
+  "helping",
+  "high",
+  "hired",
+  "hiring",
+  "include",
+  "includes",
+  "including",
+  "interested",
+  "join",
+  "keen",
+  "knowledge",
+  "level",
+  "like",
+  "location",
+  "looking",
+  "maintain",
+  "make",
+  "making",
+  "manage",
+  "many",
+  "minimum",
+  "month",
+  "months",
+  "must",
+  "needed",
+  "needs",
+  "opportunity",
+  "other",
+  "others",
+  "part",
+  "perform",
+  "person",
+  "plus",
+  "position",
+  "possess",
+  "possible",
+  "preferably",
+  "preferred",
+  "previous",
+  "prior",
+  "provide",
+  "proven",
+  "qualifications",
+  "qualified",
+  "range",
+  "related",
+  "relevant",
+  "reliable",
+  "required",
+  "requirement",
+  "requirements",
+  "responsible",
+  "responsibilities",
+  "responsibility",
+  "role",
+  "salary",
+  "seeking",
+  "similar",
+  "skill",
+  "skills",
+  "solid",
+  "strong",
+  "successful",
+  "support",
+  "supporting",
+  "take",
+  "team",
+  "their",
+  "them",
+  "these",
+  "those",
+  "through",
+  "time",
+  "types",
+  "about",
+  "above",
+  "after",
+  "again",
+  "also",
+  "been",
+  "both",
+  "each",
+  "from",
+  "into",
+  "more",
+  "most",
+  "over",
+  "same",
+  "some",
+  "such",
+  "than",
+  "that",
+  "then",
+  "they",
+  "this",
+  "very",
+  "what",
+  "when",
+  "where",
+  "which",
+  "while",
+  "will",
+  "with",
+  "answer",
+  "balance",
+  "class",
+  "close",
+  "greet",
+  "handle",
+  "hold",
+  "operate",
+  "prepare",
+  "valid",
+  "wanted",
+  "welcome",
+  "under",
+  "understanding",
+  "using",
+  "vacancy",
+  "various",
+  "well",
+  "willing",
+  "within",
+  "without",
+  "work",
+  "working",
+  "works",
+  "would",
+  "year",
+  "years",
+  "your",
 ]);
 
-const SEGMENT_BREAK = /[,;:()/•·|]|\s[-–—]\s|\s&\s|\s(?:and|or|with|for|to|of|in|on|at|as|by|the|a|an)\s/i;
+const SEGMENT_BREAK =
+  /[,;:()/•·|]|\s[-–—]\s|\s&\s|\s(?:and|or|with|for|to|of|in|on|at|as|by|the|a|an)\s/i;
 
-const capitalise = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+const capitalise = (value: string) =>
+  value.charAt(0).toUpperCase() + value.slice(1);
 
 function collectGeneralKeywords(
   jobDescription: string,
@@ -681,7 +959,8 @@ function collectGeneralKeywords(
   const namePattern =
     /(?:^|\s)(?:[Aa]t|[Jj]oin|[Jj]oining|[Ff]or|[Aa]bout)\s+((?:[A-Z][A-Za-z&'-]*)(?:\s+[A-Z][A-Za-z&'-]*)*)/g;
   for (const match of jobDescription.matchAll(namePattern)) {
-    for (const word of match[1].split(/\s+/)) properNames.add(word.toLowerCase());
+    for (const word of match[1].split(/\s+/))
+      properNames.add(word.toLowerCase());
   }
   const hasMoreLines =
     jobDescription.split(/\r?\n/).filter((line) => line.trim()).length > 1;
@@ -709,12 +988,15 @@ function collectGeneralKeywords(
       sectionWeight = headingWeight(trimmed);
       continue;
     }
-    if (cueWeight(trimmed) === null && mentionsCompany(trimmed, companyTerms)) continue;
+    if (cueWeight(trimmed) === null && mentionsCompany(trimmed, companyTerms))
+      continue;
 
     for (const { text, weight } of lineChunks(line, sectionWeight)) {
-      for (const segment of text.split(new RegExp(SEGMENT_BREAK.source, "gi"))) {
-        const words = (segment.match(/[A-Za-z][A-Za-z'-]*/g) ?? []).map((word) =>
-          word.toLowerCase(),
+      for (const segment of text.split(
+        new RegExp(SEGMENT_BREAK.source, "gi"),
+      )) {
+        const words = (segment.match(/[A-Za-z][A-Za-z'-]*/g) ?? []).map(
+          (word) => word.toLowerCase(),
         );
         const meaningful = words.map(
           (word) =>
@@ -726,7 +1008,8 @@ function collectGeneralKeywords(
         for (let index = 0; index < words.length; index += 1) {
           if (!meaningful[index]) continue;
           add(words[index], weight);
-          if (meaningful[index + 1]) add(`${words[index]} ${words[index + 1]}`, weight + 0.5);
+          if (meaningful[index + 1])
+            add(`${words[index]} ${words[index + 1]}`, weight + 0.5);
         }
       }
     }
@@ -744,7 +1027,8 @@ function collectGeneralKeywords(
       ([term, value]) =>
         term.includes(" ") ||
         !phrases.some(
-          ([phrase, other]) => phrase.split(" ").includes(term) && other.count >= value.count,
+          ([phrase, other]) =>
+            phrase.split(" ").includes(term) && other.count >= value.count,
         ),
     )
     // A single word needs real signal: a requirement, or repetition. One passing
@@ -774,6 +1058,7 @@ function collectGeneralKeywords(
         .map((word, position) => (position === 0 ? capitalise(word) : word))
         .join(" "),
       count: value.count,
+      importance: importanceOf(value.weight),
       weight: value.weight + Math.min(value.count - 1, 2) * 0.5,
     }))
     .sort(
@@ -801,35 +1086,102 @@ function wordForms(term: string): string[] {
   return [...forms].map((form) => (head ? `${head} ${form}` : form));
 }
 
-/** Compares the resume text with the job keywords, ignoring case. */
+// How much a keyword found only in the skills list is worth next to one the
+// resume shows being used.
+const LISTED_CREDIT = 0.7;
+
+/**
+ * The resume text a keyword may be matched against, split by how much it proves.
+ * Names, contact details, company names, links and dates are left out on
+ * purpose: a person called "Go" or a company called "Node Labs" has not
+ * demonstrated a skill.
+ */
+function evidenceText(data: ResumeData): { used: string; listed: string } {
+  const used = [
+    ...data.experience.flatMap((entry) => [entry.role, entry.description]),
+    ...data.projects.flatMap((entry) => [entry.title, entry.description]),
+    ...data.certifications.map((entry) => entry.name),
+    ...data.education.map((entry) => entry.degree),
+  ].join("\n");
+  const listed = [
+    data.personal.title,
+    data.summary,
+    data.skills.languages,
+    data.skills.technologies,
+    data.skills.databases,
+    data.skills.spoken,
+  ].join("\n");
+  return {
+    used: ` ${normalizeTerm(used)} `,
+    listed: ` ${normalizeTerm(listed)} `,
+  };
+}
+
+/** Compares the resume's evidence with the job keywords, ignoring case. */
 export function matchKeywords(
   data: ResumeData,
   keywords: JobKeyword[],
 ): KeywordMatch {
-  const haystack = ` ${normalizeTerm(resumeText(data))} `;
-  const matched: JobKeyword[] = [];
-  const missing: JobKeyword[] = [];
+  const { used, listed } = evidenceText(data);
+  const details: Array<KeywordDetail & { weight: number; count: number }> = [];
 
   for (const keyword of keywords) {
     const aliases = SKILL_ALIASES.get(keyword.term) ?? wordForms(keyword.term);
-    const present = aliases.some((alias) =>
-      haystack.includes(` ${alias} `),
-    );
-    (present ? matched : missing).push(keyword);
+    const found = (haystack: string) =>
+      aliases.some((alias) => haystack.includes(` ${alias} `));
+    const evidence: KeywordEvidence = found(used)
+      ? "demonstrated"
+      : found(listed)
+        ? "listed"
+        : "missing";
+    details.push({
+      term: keyword.term,
+      display: keyword.display,
+      importance: keyword.importance,
+      evidence,
+      weight: keyword.weight,
+      count: keyword.count,
+    });
   }
 
-  const totalWeight = keywords.reduce((sum, keyword) => sum + keyword.weight, 0);
-  const matchedWeight = matched.reduce((sum, keyword) => sum + keyword.weight, 0);
+  const totalWeight = details.reduce((sum, item) => sum + item.weight, 0);
+  const earned = details.reduce(
+    (sum, item) =>
+      sum +
+      item.weight *
+        (item.evidence === "demonstrated"
+          ? 1
+          : item.evidence === "listed"
+            ? LISTED_CREDIT
+            : 0),
+    0,
+  );
 
-  const byWeight = (a: JobKeyword, b: JobKeyword) =>
-    b.weight - a.weight || b.count - a.count || a.display.localeCompare(b.display);
+  const byWeight = (a: (typeof details)[number], b: (typeof details)[number]) =>
+    b.weight - a.weight ||
+    b.count - a.count ||
+    a.display.localeCompare(b.display);
+  const present = details.filter((item) => item.evidence !== "missing");
 
   return {
-    matched: matched.sort(byWeight).map((keyword) => keyword.display),
-    missing: missing.sort(byWeight).map((keyword) => keyword.display),
-    score: totalWeight
-      ? Math.round((matchedWeight / totalWeight) * 100)
-      : 0,
+    matched: [...present].sort(byWeight).map((item) => item.display),
+    missing: details
+      .filter((item) => item.evidence === "missing")
+      .sort(byWeight)
+      .map((item) => item.display),
+    listedOnly: details
+      .filter((item) => item.evidence === "listed")
+      .sort(byWeight)
+      .map((item) => item.display),
+    score: totalWeight ? Math.round((earned / totalWeight) * 100) : 0,
+    details: [...details]
+      .sort(byWeight)
+      .map(({ term, display, importance, evidence }) => ({
+        term,
+        display,
+        importance,
+        evidence,
+      })),
   };
 }
 

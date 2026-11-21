@@ -156,7 +156,7 @@ const SKILL_INPUTS: SkillInput[] = [
   },
 
   /* ------------------------------ Backend -------------------------------- */
-  { display: "Node.js", aliases: ["nodejs", "node js"] },
+  { display: "Node.js", aliases: ["nodejs", "node js", "node"] },
   { display: "Express", aliases: ["express.js", "expressjs"] },
   { display: "NestJS", aliases: ["nest.js", "nest js"] },
   { display: "Fastify" },

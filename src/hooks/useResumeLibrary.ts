@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client-api";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
 import type { ResumeData } from "@/lib/resume-schema";
 
 export interface LibraryResume {
@@ -28,12 +29,19 @@ const LIST_URL = "/api/resumes?take=50";
  * Loads the signed-in user's resumes for the career tool pages and keeps the
  * selected document in sync. All pages share the same API contract.
  */
-export function useResumeLibrary() {
-  const [items, setItems] = useState<LibraryResume[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [record, setRecord] = useState<LibraryRecord | null>(null);
+export function useResumeLibrary(initial?: PreloadedLibrary) {
+  // With preloaded data the page paints complete on its first render and makes
+  // no request until the user changes something.
+  const [items, setItems] = useState<LibraryResume[]>(initial?.items ?? []);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initial ? (initial.record?.id ?? initial.items[0]?.id ?? null) : null,
+  );
+  const [record, setRecord] = useState<LibraryRecord | null>(
+    initial?.record ?? null,
+  );
   const [failedId, setFailedId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initial);
+  const hasInitial = Boolean(initial);
   const [error, setError] = useState<string | null>(null);
 
   const applyList = useCallback((next: LibraryResume[]) => {
@@ -46,6 +54,7 @@ export function useResumeLibrary() {
 
   // Initial load. State is only updated from async callbacks.
   useEffect(() => {
+    if (hasInitial) return;
     let cancelled = false;
     apiFetch<ListResponse>(LIST_URL)
       .then((list) => {
@@ -65,12 +74,14 @@ export function useResumeLibrary() {
     return () => {
       cancelled = true;
     };
-  }, [applyList]);
+  }, [applyList, hasInitial]);
 
   // Load the selected resume. No synchronous setState: the loading state is
   // derived from whether the cached record matches the current selection.
   useEffect(() => {
     if (!selectedId) return;
+    // Already on screen (preloaded, or just saved): nothing to fetch.
+    if (record?.id === selectedId) return;
     let cancelled = false;
     apiFetch<LibraryRecord>(`/api/resumes/${selectedId}`)
       .then((value) => {
@@ -90,6 +101,8 @@ export function useResumeLibrary() {
     return () => {
       cancelled = true;
     };
+    // `record` is read only to skip a fetch for what is already loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   const reload = useCallback(async () => {

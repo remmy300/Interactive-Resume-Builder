@@ -86,3 +86,20 @@ describe("CV check one-click fixes", () => {
     expect(sent.data.experience[0].description).toContain("Built login pages");
   });
 });
+
+describe("CV check assessments", () => {
+  it("shows quality, document and job compatibility as three separate assessments", async () => {
+    render(<CvCheckClient />);
+    expect(await screen.findByText("General quality")).toBeTruthy();
+    expect(screen.getByText("Document compatibility", { selector: "p" })).toBeTruthy();
+    expect(screen.getByText("Job compatibility")).toBeTruthy();
+    expect(screen.getByText(/Needs a job description/i)).toBeTruthy();
+  });
+
+  it("explains which checks cost points", async () => {
+    render(<CvCheckClient />);
+    expect(await screen.findByText(/How your score was made/i)).toBeTruthy();
+    expect(screen.getByText(/What cost the most/i)).toBeTruthy();
+    expect(screen.getAllByText(/^−[\d.]+ of [\d.]+$/).length).toBeGreaterThan(0);
+  });
+});

@@ -23,6 +23,7 @@ import { extractResumeEvidence } from "@/lib/interview/resume-evidence";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 import { useResumeLibrary } from "@/hooks/useResumeLibrary";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
 
 interface ListResponse {
   items: InterviewNoteRecord[];
@@ -35,8 +36,8 @@ const CATEGORY_LABELS: Record<InterviewCategory, string> = {
   company: "Company",
 };
 
-export function InterviewClient() {
-  const library = useResumeLibrary();
+export function InterviewClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+  const library = useResumeLibrary(initial);
   const [notes, setNotes] = useState<InterviewNoteRecord[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [company, setCompany] = useState("");

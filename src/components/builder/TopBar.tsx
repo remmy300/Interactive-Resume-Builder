@@ -32,6 +32,9 @@ interface TopBarProps {
   onExport: () => void;
   onDeleteAccount: () => void;
   onSignOut: () => void;
+  /** A visitor who has not signed in: the draft stays in this browser. */
+  guest?: boolean;
+  onSignIn?: () => void;
 }
 
 export function TopBar({
@@ -51,6 +54,8 @@ export function TopBar({
   onExport,
   onDeleteAccount,
   onSignOut,
+  guest = false,
+  onSignIn,
 }: TopBarProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const initials = (name || email || "?").trim().charAt(0).toUpperCase();
@@ -79,6 +84,18 @@ export function TopBar({
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {guest ? (
+            <Tooltip title="Your draft is kept in this browser. Sign in to save it to your account.">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<SaveIcon />}
+                onClick={onSignIn}
+              >
+                Sign in to save
+              </Button>
+            </Tooltip>
+          ) : (
           <Tooltip title={blockedReason || "Save (Ctrl/⌘ + S)"}>
             <span>
               <Button
@@ -97,6 +114,7 @@ export function TopBar({
               </Button>
             </span>
           </Tooltip>
+          )}
           <Button
             size="small"
             variant="outlined"
@@ -120,6 +138,11 @@ export function TopBar({
               </Button>
             </span>
           </Tooltip>
+          {guest ? (
+            <Button size="small" onClick={onSignIn}>
+              Sign in
+            </Button>
+          ) : (
           <IconButton
             aria-label="Account menu"
             aria-haspopup="menu"
@@ -138,6 +161,7 @@ export function TopBar({
               {initials}
             </Avatar>
           </IconButton>
+          )}
         </div>
       </div>
 

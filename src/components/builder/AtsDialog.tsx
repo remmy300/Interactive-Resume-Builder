@@ -197,6 +197,33 @@ export function AtsDialog({ open, data, dispatch, onClose }: AtsDialogProps) {
               </p>
               <p className="mt-1 text-sm text-slate-700">{report.verdict}</p>
               <ScoreCaps report={report} />
+              {report.breakdown.some((item) => item.lost > 0) && (
+                <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <p className="font-semibold text-slate-800">
+                    What is costing points
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {report.breakdown
+                      .filter((item) => item.lost > 0)
+                      .slice(0, 3)
+                      .map((item) => (
+                        <li key={item.id} className="flex justify-between gap-3">
+                          <span className="truncate">{item.label}</span>
+                          <span className="shrink-0 tabular-nums">
+                            −{item.lost} of {item.possible}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+              <p className="mt-2 text-[11px] text-slate-500">
+                Phone, location and profile links never change this score.
+                Document compatibility is scored separately
+                {report.document.score !== null
+                  ? ` (${report.document.score}/100, ${report.document.verdict.toLowerCase()}).`
+                  : "."}
+              </p>
               <p className="mt-2 text-[11px] text-slate-500">{SCORE_NOTE}</p>
             </section>
 

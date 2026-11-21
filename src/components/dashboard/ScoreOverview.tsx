@@ -3,7 +3,7 @@ import SpeedIcon from "@mui/icons-material/Speed";
 import TipsAndUpdatesOutlinedIcon from "@mui/icons-material/TipsAndUpdatesOutlined";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import type { AtsReport } from "@/lib/ats";
+import type { AtsReport } from "@/lib/ats-types";
 import { ScoreCaps, SCORE_NOTE } from "./CheckExamples";
 
 function tone(score: number) {

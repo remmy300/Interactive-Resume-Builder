@@ -14,6 +14,12 @@ import {
   type ResumeData,
 } from "@/lib/resume-schema";
 import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
+import {
+  clearGuestDraft,
+  loadGuestDraft,
+  saveGuestDraft,
+} from "@/lib/guest-draft";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
 import { resumeReducer } from "@/lib/resume-reducer";
 import { checkResumeValidity } from "@/lib/resume-validity";
 
@@ -49,23 +55,36 @@ export type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
  * Owns the resume list, the document being edited, dirty tracking, autosave,
  * and the optimistic-concurrency handshake with the API.
  */
-export function useResumeEditor(initialResumeId?: string | null) {
-  const [items, setItems] = useState<ResumeSummary[]>([]);
+export function useResumeEditor(
+  initialResumeId?: string | null,
+  {
+    guest = false,
+    initial,
+  }: { guest?: boolean; initial?: PreloadedLibrary } = {},
+) {
+  // Preloaded by the server: the editor opens with the resume in it and makes
+  // no request to find it.
+  const seed = initial?.record ?? null;
+  const [items, setItems] = useState<ResumeSummary[]>(initial?.items ?? []);
   const [data, dispatch] = useReducer(
     resumeReducer,
-    undefined,
-    createEmptyResume,
+    seed,
+    (record: PreloadedLibrary["record"]) =>
+      record ? normalizeResumeData(record.data) : createEmptyResume(),
   );
-  const [resumeId, setResumeId] = useState<string | null>(null);
-  const [title, setTitle] = useState(DEFAULT_TITLE);
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [resumeId, setResumeId] = useState<string | null>(seed?.id ?? null);
+  const [title, setTitle] = useState(seed?.title ?? DEFAULT_TITLE);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(
+    seed?.updatedAt ?? null,
+  );
+  const [isLoading, setIsLoading] = useState(!initial);
+  const hasInitial = Boolean(initial);
   const [isSaving, setIsSaving] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
 
   const [savedKey, setSavedKey] = useState(() =>
-    serialize(DEFAULT_TITLE, data),
+    serialize(seed?.title ?? DEFAULT_TITLE, data),
   );
 
   const savingRef = useRef<Promise<boolean> | null>(null);
@@ -79,6 +98,10 @@ export function useResumeEditor(initialResumeId?: string | null) {
   useEffect(() => {
     currentKeyRef.current = currentKey;
   }, [currentKey]);
+
+  const importRef = useRef<
+    (data: ResumeData, title: string) => Promise<{ saved: boolean; reason?: string }>
+  >(async () => ({ saved: false }));
 
   const applyRecord = useCallback((record: ResumeRecord) => {
     const normalized = normalizeResumeData(record.data);
@@ -118,6 +141,28 @@ export function useResumeEditor(initialResumeId?: string | null) {
     didLoadRef.current = true;
 
     const load = async () => {
+      if (hasInitial) {
+        // Nothing to fetch. A draft written before signing in still moves into
+        // the account.
+        const draft = loadGuestDraft();
+        if (draft) {
+          clearGuestDraft();
+          await importRef.current(draft.data, draft.title);
+        }
+        return;
+      }
+      if (guest) {
+        const draft = loadGuestDraft();
+        if (draft) {
+          setTitle(draft.title);
+          dispatch({ type: "replace", data: draft.data });
+          const key = serialize(draft.title, draft.data);
+          setSavedKey(key);
+          savedKeyRef.current = key;
+        }
+        setIsLoading(false);
+        return;
+      }
       try {
         const list = await apiFetch<ListResponse>("/api/resumes?take=50");
         setItems(list.items);
@@ -130,6 +175,13 @@ export function useResumeEditor(initialResumeId?: string | null) {
           requested ?? (initialResumeId === "new" ? undefined : list.items[0]);
         if (target) {
           await openResume(target.id);
+        }
+
+        // A draft written before signing in becomes a saved resume, once.
+        const draft = loadGuestDraft();
+        if (draft) {
+          clearGuestDraft();
+          await importRef.current(draft.data, draft.title);
         }
       } catch (loadError) {
         setSaveState("error");
@@ -144,7 +196,7 @@ export function useResumeEditor(initialResumeId?: string | null) {
     };
 
     void load();
-  }, [openResume, initialResumeId]);
+  }, [openResume, initialResumeId, guest, hasInitial]);
 
   const newResume = useCallback(() => {
     const empty = createEmptyResume();
@@ -228,12 +280,17 @@ export function useResumeEditor(initialResumeId?: string | null) {
     [],
   );
 
+  useEffect(() => {
+    importRef.current = importResume;
+  }, [importResume]);
+
   const saveRef = useRef<(options?: { silent?: boolean }) => Promise<boolean>>(
     async () => false,
   );
 
   const save = useCallback(
     async (options: { silent?: boolean } = {}): Promise<boolean> => {
+      if (guest) return false;
       if (savingRef.current) {
         await savingRef.current;
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -320,7 +377,7 @@ export function useResumeEditor(initialResumeId?: string | null) {
       savingRef.current = run();
       return savingRef.current;
     },
-    [data, resumeId, title, updatedAt],
+    [data, guest, resumeId, title, updatedAt],
   );
 
   useEffect(() => {
@@ -328,7 +385,15 @@ export function useResumeEditor(initialResumeId?: string | null) {
   }, [save]);
 
   useEffect(() => {
-    if (!resumeId || !isDirty || isLoading || isSaving) return;
+    if (!guest || isLoading) return;
+    const timer = setTimeout(() => {
+      saveGuestDraft({ title, data });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [guest, isLoading, title, data]);
+
+  useEffect(() => {
+    if (guest || !resumeId || !isDirty || isLoading || isSaving) return;
     if (failedKeyRef.current === currentKey) return;
 
     const timer = setTimeout(() => {
@@ -336,17 +401,17 @@ export function useResumeEditor(initialResumeId?: string | null) {
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [currentKey, isDirty, isLoading, isSaving, resumeId]);
+  }, [currentKey, guest, isDirty, isLoading, isSaving, resumeId]);
 
   useEffect(() => {
-    if (!isDirty) return;
+    if (guest || !isDirty) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
+  }, [guest, isDirty]);
 
   // Leaving the builder (for example to the CV check page) before autosave fires
   // would leave the other pages showing the old version, so save on the way out.

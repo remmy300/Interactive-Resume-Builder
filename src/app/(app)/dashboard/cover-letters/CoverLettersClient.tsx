@@ -27,6 +27,7 @@ import LetterPreview from "@/components/dashboard/LetterPreview";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 import { useResumeLibrary } from "@/hooks/useResumeLibrary";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
 
 interface FormState {
   title: string;
@@ -48,8 +49,8 @@ interface ListResponse {
   items: CoverLetterRecord[];
 }
 
-export function CoverLettersClient() {
-  const library = useResumeLibrary();
+export function CoverLettersClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+  const library = useResumeLibrary(initial);
   const [letters, setLetters] = useState<CoverLetterRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);

@@ -9,13 +9,19 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
-import { analyzeResume, type AtsStatus } from "@/lib/ats";
+import { analyzeResume } from "@/lib/ats-analyze";
+import type { AtsStatus } from "@/lib/ats-types";
 import { apiFetch, JSON_HEADERS } from "@/lib/client-api";
 import type { ResumeData } from "@/lib/resume-schema";
 import { useResumeLibrary, type LibraryRecord } from "@/hooks/useResumeLibrary";
+import type { PreloadedLibrary } from "@/lib/resume-preload";
 import CheckFixes from "@/components/dashboard/CheckFixes";
 import { CheckExamples } from "@/components/dashboard/CheckExamples";
 import ScoreOverview from "@/components/dashboard/ScoreOverview";
+import {
+  AssessmentCards,
+  ScoreExplanation,
+} from "@/components/dashboard/ScoreExplanation";
 import PageHeader from "@/components/dashboard/PageHeader";
 import ResumeSelect from "@/components/dashboard/ResumeSelect";
 
@@ -36,9 +42,12 @@ const STATUS = {
 const formatPoints = (value: number) =>
   Number.isInteger(value) ? String(value) : value.toFixed(1);
 
-export function CvCheckClient() {
-  const library = useResumeLibrary();
+export function CvCheckClient({ initial }: { initial?: PreloadedLibrary } = {}) {
+  const library = useResumeLibrary(initial);
   const report = library.record ? analyzeResume(library.record.data) : null;
+  // Document compatibility has its own score, so it is not part of the quality bars.
+  const qualityCategories =
+    report?.categories.filter((category) => category.id !== "document") ?? [];
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<{
     severity: "success" | "error";
@@ -162,16 +171,21 @@ export function CvCheckClient() {
                 improvements={actionable.length}
               />
 
+              <AssessmentCards report={report} />
+
+              <ScoreExplanation report={report} />
+
               <section className="rounded-xl border border-slate-200 bg-white p-5">
                 <h2 className="text-base font-semibold text-slate-900">
-                  Assessment breakdown
+                  Quality breakdown
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Checks that do not apply to this resume are excluded from the
-                  category totals.
+                  category totals. Document compatibility is scored separately,
+                  below.
                 </p>
                 <ul className="mt-4 space-y-3">
-                  {report.categories.map((category) => (
+                  {qualityCategories.map((category) => (
                     <li key={category.id}>
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <span className="font-medium text-slate-800">

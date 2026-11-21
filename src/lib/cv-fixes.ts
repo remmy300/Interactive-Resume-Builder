@@ -36,21 +36,23 @@ const SYNONYMS: Record<string, string[]> = {
   built: ["Developed", "Created", "Engineered"],
   developed: ["Created", "Engineered", "Produced"],
   created: ["Developed", "Produced"],
-  integrated: ["Incorporated", "Embedded"],
+  integrated: ["Connected"],
   implemented: ["Delivered", "Introduced", "Applied"],
   used: ["Applied", "Leveraged"],
   designed: ["Architected", "Structured"],
   wrote: ["Authored", "Created"],
-  added: ["Introduced", "Included"],
+  added: ["Introduced"],
   managed: ["Led", "Oversaw"],
   improved: ["Enhanced", "Strengthened"],
   optimized: ["Improved", "Tuned"],
   fixed: ["Resolved", "Corrected"],
   led: ["Directed", "Guided"],
-  worked: ["Collaborated"],
 };
 
 const MAX_REPEATS = 2;
+
+const nameWords = (value: string) =>
+  new Set(value.toLowerCase().match(/[a-z]+/g) ?? []);
 
 function bulletLines(description: string): string[] {
   return description
@@ -65,18 +67,33 @@ export function suggestOpeningVariety(data: ResumeData): WordingFix[] {
     label: string;
     text: string;
     word: string;
+    names: Set<string>;
   }> = [];
   for (const entry of data.experience) {
     const label =
       [entry.role, entry.company].filter(Boolean).join(" at ") || "Experience";
+    const names = nameWords(`${entry.role} ${entry.company}`);
     for (const text of bulletLines(entry.description)) {
-      bullets.push({ entryId: entry.id, label, text, word: leadingWord(text) });
+      bullets.push({
+        entryId: entry.id,
+        label,
+        text,
+        word: leadingWord(text),
+        names,
+      });
     }
   }
   for (const entry of data.projects) {
     const label = entry.title.trim() || "Project";
+    const names = nameWords(entry.title);
     for (const text of bulletLines(entry.description)) {
-      bullets.push({ entryId: entry.id, label, text, word: leadingWord(text) });
+      bullets.push({
+        entryId: entry.id,
+        label,
+        text,
+        word: leadingWord(text),
+        names,
+      });
     }
   }
 
@@ -96,9 +113,15 @@ export function suggestOpeningVariety(data: ResumeData): WordingFix[] {
     seen.set(bullet.word, position);
     if (position <= MAX_REPEATS) continue;
 
-    const choice = (SYNONYMS[bullet.word] ?? []).find(
-      (candidate) => !inUse.has(candidate.toLowerCase()),
-    );
+    // Never offer a verb the bullet already contains, or one that is part of the
+    // role, company or project name ("Developer" at "Developed Labs").
+    const present = new Set(bullet.text.toLowerCase().match(/[a-z]+/g) ?? []);
+    const choice = (SYNONYMS[bullet.word] ?? []).find((candidate) => {
+      const lower = candidate.toLowerCase();
+      return (
+        !inUse.has(lower) && !present.has(lower) && !bullet.names.has(lower)
+      );
+    });
     if (!choice) continue;
     inUse.add(choice.toLowerCase());
 
@@ -125,9 +148,7 @@ export function setLocation(data: ResumeData, location: string): ResumeData {
 const QUALIFICATION_WORDS =
   /\b(graduate|diploma|certificate|degree|bachelor|master|bsc|msc|ba|ma|mba|phd|kcse|a-levels?|high ?school)\b/i;
 
-export function incompleteEducation(
-  data: ResumeData,
-): {
+export function incompleteEducation(data: ResumeData): {
   entry: EducationEntry;
   institution: string;
   qualification: string;

@@ -32,7 +32,9 @@ describe("job match page", () => {
     fireEvent.change(box, {
       target: { value: "Frontend Developer. Requirements: React, TypeScript, Next.js, Docker and PostgreSQL experience." },
     });
-    await waitFor(() => expect(screen.getByText(/Weighted requirement match/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/^Job compatibility$/i)).toBeTruthy());
     expect(screen.getByText(/Missing skills/i)).toBeTruthy();
+    // Each missing skill says how much the posting asks for it.
+    expect(screen.getAllByText(/^Required$/i).length).toBeGreaterThan(0);
   });
 });

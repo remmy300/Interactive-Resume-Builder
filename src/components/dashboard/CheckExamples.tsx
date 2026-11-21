@@ -1,4 +1,4 @@
-import type { AtsReport } from "@/lib/ats";
+import type { AtsReport } from "@/lib/ats-types";
 
 /** The exact resume lines or items that caused a check to flag. */
 export function CheckExamples({ examples }: { examples?: string[] }) {
